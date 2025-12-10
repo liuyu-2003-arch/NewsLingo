@@ -1,0 +1,5 @@
+{
+  "name": "NewsLingo - NBC English Learner",
+  "description": "An immersive English learning tool designed for news broadcasts. Syncs YouTube videos with uploaded subtitles in a scrolling, karaoke-style interface with AI-powered vocabulary explanation.",
+  "requestFramePermissions": []
+}
