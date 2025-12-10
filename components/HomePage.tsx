@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Session } from '../types';
 import { getAllSessions, deleteSession } from '../services/db';
-import { Plus, Play, MoreVertical, Trash2, Calendar, Clock } from 'lucide-react';
+import { Plus, Play, MoreVertical, Trash2, Calendar, Clock, Cloud } from 'lucide-react';
 
 interface HomePageProps {
   onNavigateToUpload: () => void;
@@ -37,7 +37,7 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigateToUpload, onNavigateToPla
 
   const handleDelete = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation(); // Prevent card click
-    if (window.confirm('Are you sure you want to delete this session?')) {
+    if (window.confirm('Are you sure you want to delete this session? This will remove it from the cloud.')) {
       await deleteSession(id);
       loadSessions();
     }
@@ -79,14 +79,20 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigateToUpload, onNavigateToPla
             className="flex items-center space-x-2 bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-full font-medium text-sm transition-all shadow-sm hover:shadow-md"
         >
             <Plus size={16} />
-            <span>Upload</span>
+            <span>Import</span>
         </button>
       </nav>
 
       <main className="max-w-4xl mx-auto px-6 py-10">
         <div className="mb-8">
-            <h2 className="text-2xl font-bold text-slate-900">Latest Episodes</h2>
-            <p className="text-slate-500 text-sm mt-1">Practice your listening with recent broadcasts</p>
+            <h2 className="text-2xl font-bold text-slate-900">Cloud Library</h2>
+            <div className="flex items-center gap-2 mt-1">
+                <p className="text-slate-500 text-sm">Practice your listening with recent broadcasts</p>
+                <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-indigo-50 text-indigo-600 uppercase tracking-wide border border-indigo-100">
+                    <Cloud size={10} className="mr-1" />
+                    Synced
+                </span>
+            </div>
         </div>
 
         {loading ? (
@@ -101,7 +107,7 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigateToUpload, onNavigateToPla
             </div>
             <h3 className="text-lg font-bold text-slate-900">Your library is empty</h3>
             <p className="text-slate-500 max-w-xs mt-2 mb-6 text-sm leading-relaxed">
-              Upload an NBC Nightly News clip or any audio/video file with subtitles to get started.
+              Upload an NBC Nightly News clip to sync it to all your devices.
             </p>
             <button 
                 onClick={onNavigateToUpload}
@@ -125,8 +131,6 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigateToUpload, onNavigateToPla
                         alt={session.title}
                         className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity"
                     />
-                    
-                    {/* Badge Removed to prevent ghosting */}
                     
                     {/* Play Overlay */}
                     <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/20 backdrop-blur-[1px]">
@@ -170,7 +174,7 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigateToUpload, onNavigateToPla
                                 className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 flex items-center font-medium"
                             >
                                 <Trash2 size={14} className="mr-2" />
-                                Delete
+                                Delete from Cloud
                             </button>
                         </div>
                     )}

@@ -177,20 +177,30 @@ const PlayerBar: React.FC<PlayerBarProps> = ({
 
           {/* Controls */}
           <div className="flex-1 px-4 md:px-12 flex flex-col justify-center space-y-2">
-             <div className="flex items-center justify-center space-x-4 md:space-x-8">
+             <div className="flex items-center justify-center space-x-6 md:space-x-10">
                 <button 
                   onClick={() => skip(-5)}
                   className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-colors"
                   title="-5s"
                 >
-                    <SkipBack size={24} />
+                    <SkipBack size={26} strokeWidth={1.5} />
                 </button>
 
+                {/* Beautified Play Button */}
                 <button 
                   onClick={togglePlay}
-                  className="p-3 bg-indigo-600 text-white rounded-full shadow-lg shadow-indigo-200 hover:bg-indigo-700 hover:scale-105 active:scale-95 transition-all"
+                  className="relative group p-0 rounded-full transition-transform active:scale-95 outline-none focus:outline-none"
                 >
-                    {isPlaying ? <Pause size={24} fill="currentColor" /> : <Play size={24} fill="currentColor" className="ml-1" />}
+                    {/* Glow effect */}
+                    <div className="absolute inset-0 rounded-full bg-indigo-500 blur-md opacity-40 group-hover:opacity-60 transition-opacity duration-300"></div>
+                    {/* Button Body */}
+                    <div className="relative w-14 h-14 rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-white shadow-xl shadow-indigo-200 border border-white/20 group-hover:from-indigo-600 group-hover:to-violet-700 transition-all duration-300">
+                        {isPlaying ? (
+                            <Pause size={28} fill="currentColor" className="drop-shadow-sm" />
+                        ) : (
+                            <Play size={28} fill="currentColor" className="ml-1 drop-shadow-sm" />
+                        )}
+                    </div>
                 </button>
 
                  <button 
@@ -198,7 +208,7 @@ const PlayerBar: React.FC<PlayerBarProps> = ({
                   className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-colors"
                   title="+5s"
                 >
-                    <SkipForward size={24} />
+                    <SkipForward size={26} strokeWidth={1.5} />
                 </button>
              </div>
              
@@ -226,14 +236,18 @@ const PlayerBar: React.FC<PlayerBarProps> = ({
              </div>
           </div>
 
-           {/* Expand Toggle */}
-           <button 
-             onClick={() => setExpanded(!expanded)}
-             className="p-2 text-slate-400 hover:text-indigo-600 transition-colors hidden sm:block"
-             title={expanded ? "Minimize" : "Maximize"}
-           >
-             {expanded ? <Minimize2 size={20} /> : <Maximize2 size={20} />}
-           </button>
+           {/* Expand Toggle - Hide for Audio */}
+           {mediaType === 'video' ? (
+               <button 
+                 onClick={() => setExpanded(!expanded)}
+                 className="p-2 text-slate-400 hover:text-indigo-600 transition-colors hidden sm:block"
+                 title={expanded ? "Minimize" : "Maximize"}
+               >
+                 {expanded ? <Minimize2 size={20} /> : <Maximize2 size={20} />}
+               </button>
+           ) : (
+             <div className="w-8 hidden sm:block" /> /* Spacer to balance layout */
+           )}
         </div>
       </div>
     </div>

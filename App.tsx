@@ -28,25 +28,17 @@ const App: React.FC = () => {
   // Seek State
   const [seekCommand, setSeekCommand] = useState<number | null>(null);
 
-  // Cleanup object URL when config changes
-  useEffect(() => {
-    return () => {
-      if (config?.mediaUrl) {
-        URL.revokeObjectURL(config.mediaUrl);
-      }
-    };
-  }, [config]);
-
+  // No need to cleanup object URLs anymore as Supabase provides public http URLs
+  
   const loadSession = async (sessionId: string) => {
     setLoadingSession(true);
     try {
       const session = await getSession(sessionId);
       if (session) {
-        const mediaUrl = URL.createObjectURL(session.mediaBlob);
+        // Direct URL from Supabase
+        const mediaUrl = session.mediaUrl;
         
-        // Clean title logic (same as HomePage)
-        // 1. Remove extension
-        // 2. Remove trailing bracketed ID like [F1ZZXaZ_QzY]
+        // Clean title logic
         const cleanTitle = session.title
             .replace(/\.[^/.]+$/, "")
             .replace(/\s*\[.*?\]$/, "");
@@ -65,7 +57,7 @@ const App: React.FC = () => {
       }
     } catch (e) {
       console.error("Error loading session", e);
-      alert("Failed to load session data.");
+      alert("Failed to load session data. Check your connection.");
     } finally {
       setLoadingSession(false);
     }
@@ -89,7 +81,7 @@ const App: React.FC = () => {
 
   const handleBackToHome = () => {
     setAppState(AppState.HOME);
-    setConfig(null); // Triggers cleanup
+    setConfig(null); 
     setIsPlaying(false);
   };
 
@@ -116,7 +108,7 @@ const App: React.FC = () => {
       {loadingSession && (
         <div className="fixed inset-0 bg-white/80 backdrop-blur-sm z-50 flex flex-col items-center justify-center space-y-4">
             <Loader2 className="animate-spin text-indigo-600" size={48} />
-            <p className="text-slate-600 font-medium">Loading session data...</p>
+            <p className="text-slate-600 font-medium">Loading session from cloud...</p>
         </div>
       )}
 

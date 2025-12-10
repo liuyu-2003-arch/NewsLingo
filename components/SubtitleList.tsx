@@ -64,9 +64,29 @@ const SubtitleList: React.FC<SubtitleListProps> = ({ subtitles, currentTime, onS
               onClick={() => onSeek(sub.startTime)}
             >
               <div className="flex gap-4 items-start">
-                 <div className={`mt-1 font-mono text-xs w-12 shrink-0 ${isActive ? 'text-indigo-400' : 'text-slate-300'}`}>
-                    {new Date(sub.startTime * 1000).toISOString().substr(14, 5)}
+                 {/* Left Column: Time & AI Button */}
+                 <div className="flex flex-col items-center gap-3 shrink-0 w-12 mt-1">
+                     <div className={`font-mono text-xs ${isActive ? 'text-indigo-400' : 'text-slate-300'}`}>
+                        {new Date(sub.startTime * 1000).toISOString().substr(14, 5)}
+                     </div>
+                     
+                     <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onAnalyze(primaryText); // Analyze only the English part
+                        }}
+                        className={`p-1.5 rounded-full transition-all duration-200 ${
+                            isActive 
+                            ? 'bg-indigo-100 text-indigo-600 opacity-100' 
+                            : 'bg-white text-slate-400 opacity-0 group-hover:opacity-100 hover:text-indigo-600 hover:bg-indigo-50 shadow-sm border border-slate-100'
+                        }`}
+                        title="Explain with AI"
+                     >
+                        <Bot size={16} />
+                     </button>
                  </div>
+
+                 {/* Right Column: Text Content */}
                  <div className="flex-1 min-w-0">
                     {/* Primary Language (English) */}
                     <p 
@@ -90,22 +110,6 @@ const SubtitleList: React.FC<SubtitleListProps> = ({ subtitles, currentTime, onS
                         </p>
                     )}
                  </div>
-                 
-                 {/* AI Button - Visible on hover or when active */}
-                 <button
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        onAnalyze(primaryText); // Analyze only the English part
-                    }}
-                    className={`p-2 rounded-full transition-all duration-200 shrink-0 ${
-                        isActive 
-                        ? 'bg-indigo-100 text-indigo-600 opacity-100' 
-                        : 'bg-white text-slate-400 opacity-0 group-hover:opacity-100 hover:text-indigo-600 hover:bg-indigo-50 shadow-sm'
-                    }`}
-                    title="Explain with AI"
-                 >
-                    <Bot size={18} />
-                 </button>
               </div>
             </div>
           );
