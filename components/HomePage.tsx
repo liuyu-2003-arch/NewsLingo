@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Session } from '../types';
 import { getAllSessions, deleteSession } from '../services/db';
-import { Plus, Play, MoreVertical, Trash2, Calendar, Clock, Cloud } from 'lucide-react';
+import { Plus, Play, MoreVertical, Trash2, Clock, Cloud } from 'lucide-react';
 
 interface HomePageProps {
   onNavigateToUpload: () => void;
@@ -49,13 +49,6 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigateToUpload, onNavigateToPla
     setMenuOpenId(menuOpenId === id ? null : id);
   };
 
-  const formatDate = (ts: number) => {
-    return new Date(ts).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-    });
-  };
-
   const getCleanTitle = (filename: string) => {
     // 1. Remove file extension (e.g. .mp3, .mp4)
     let title = filename.replace(/\.[^/.]+$/, "");
@@ -69,8 +62,12 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigateToUpload, onNavigateToPla
       {/* Navbar */}
       <nav className="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-slate-200 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-bold text-lg">
-                N
+            {/* Logo */}
+            <div className="w-9 h-9 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-md shadow-indigo-200">
+               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                 <path d="M21 15C21 15.5304 20.7893 16.0391 20.4142 16.4142C20.0391 16.7893 19.5304 17 19 17H7L3 21V5C3 4.46957 3.21071 3.96086 3.58579 3.58579C3.96086 3.21071 4.46957 3 5 3H19C19.5304 3 20.0391 3.21071 20.4142 3.58579C20.7893 3.96086 21 4.46957 21 5V15Z" fill="white"/>
+                 <path d="M7 8H17M7 12H14" stroke="#4F46E5" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+               </svg>
             </div>
             <h1 className="text-xl font-bold tracking-tight text-slate-800">NewsLingo</h1>
         </div>
@@ -79,7 +76,8 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigateToUpload, onNavigateToPla
             className="flex items-center space-x-2 bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-full font-medium text-sm transition-all shadow-sm hover:shadow-md"
         >
             <Plus size={16} />
-            <span>Import</span>
+            <span className="hidden sm:inline">Import</span>
+            <span className="sm:hidden">Add</span>
         </button>
       </nav>
 
@@ -148,9 +146,7 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigateToUpload, onNavigateToPla
                     <div className="flex items-center text-sm font-medium text-slate-500 space-x-2">
                         <span>NBC News</span>
                         <span className="w-1 h-1 rounded-full bg-slate-300" />
-                        <span className="text-slate-400 font-normal">{formatDate(session.createdAt)}</span>
-                        <span className="w-1 h-1 rounded-full bg-slate-300 hidden sm:inline-block" />
-                         <span className="hidden sm:inline-flex items-center text-slate-400 font-normal">
+                         <span className="flex items-center text-slate-400 font-normal">
                              <Clock size={12} className="mr-1" />
                              {session.mediaType === 'audio' ? 'Audio' : 'Video'}
                          </span>

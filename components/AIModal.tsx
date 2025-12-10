@@ -22,7 +22,7 @@ const AIModal: React.FC<AIModalProps> = ({ isOpen, onClose, selectedText, explan
         <div className="bg-gradient-to-r from-indigo-600 to-violet-600 p-6 flex justify-between items-start shrink-0">
           <div className="flex items-center text-white space-x-2">
             <Sparkles className="h-6 w-6 text-yellow-300" />
-            <h3 className="text-xl font-bold">AI Tutor</h3>
+            <h3 className="text-xl font-bold">AI 导师</h3>
           </div>
           <button 
             onClick={onClose}
@@ -35,7 +35,7 @@ const AIModal: React.FC<AIModalProps> = ({ isOpen, onClose, selectedText, explan
         {/* Content - Scrollable */}
         <div className="p-6 space-y-6 overflow-y-auto">
           <div className="space-y-2">
-            <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Analyzing Sentence</h4>
+            <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">正在分析</h4>
             <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 text-slate-700 italic font-medium">
               "{selectedText}"
             </div>
@@ -44,13 +44,13 @@ const AIModal: React.FC<AIModalProps> = ({ isOpen, onClose, selectedText, explan
           <div className="space-y-2">
             <div className="flex items-center space-x-2 text-indigo-600">
                 <BookOpen size={18} />
-                <h4 className="text-sm font-bold uppercase tracking-wide">Explanation</h4>
+                <h4 className="text-sm font-bold uppercase tracking-wide">解释</h4>
             </div>
             
             {loading ? (
               <div className="flex flex-col items-center justify-center py-8 space-y-3 text-slate-400">
                 <Loader2 className="animate-spin h-8 w-8 text-indigo-500" />
-                <p className="text-sm">Gemini is thinking...</p>
+                <p className="text-sm">Gemini 正在思考...</p>
               </div>
             ) : (
               <div className="text-slate-600 leading-relaxed text-sm whitespace-pre-wrap">
@@ -66,7 +66,7 @@ const AIModal: React.FC<AIModalProps> = ({ isOpen, onClose, selectedText, explan
             onClick={onClose}
             className="px-4 py-2 bg-white border border-slate-300 rounded-lg text-slate-700 text-sm font-medium hover:bg-slate-50 hover:text-slate-900 transition-colors"
           >
-            Close
+            关闭
           </button>
         </div>
       </div>

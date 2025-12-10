@@ -69,7 +69,14 @@ export const getAllSessions = async (): Promise<Session[]> => {
     throw new Error(`Failed to load sessions: ${error.message}`);
   }
 
-  return data as Session[];
+  // Map snake_case database fields to camelCase interface properties
+  return (data || []).map((item: any) => ({
+    id: item.id,
+    title: item.title,
+    mediaType: item.media_type,
+    createdAt: item.created_at,
+    subtitles: item.subtitles
+  }));
 };
 
 export const getSession = async (id: string): Promise<StoredSession | undefined> => {
