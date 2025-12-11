@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { AppState, VideoConfig, Session } from './types';
+import React, { useState } from 'react';
+import { AppState, VideoConfig, Session, UploadTask } from './types';
 import SetupForm from './components/SetupForm';
 import HomePage from './components/HomePage';
 import PlayerBar from './components/PlayerBar';
@@ -7,6 +7,7 @@ import SubtitleList from './components/SubtitleList';
 import AIModal from './components/AIModal';
 import { explainText } from './services/geminiService';
 import { getSession } from './services/db';
+import { processAndUploadSession, ProcessingOptions } from './services/sessionProcessor';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 
 const App: React.FC = () => {
@@ -29,17 +30,15 @@ const App: React.FC = () => {
   // Seek State
   const [seekCommand, setSeekCommand] = useState<number | null>(null);
 
-  // No need to cleanup object URLs anymore as Supabase provides public http URLs
-  
+  // Background Upload State
+  const [activeUpload, setActiveUpload] = useState<UploadTask | null>(null);
+
   const loadSession = async (sessionId: string) => {
     setLoadingSession(true);
     try {
       const session = await getSession(sessionId);
       if (session) {
-        // Direct URL from Supabase
         const mediaUrl = session.mediaUrl;
-        
-        // Use exact title stored in DB, fallback to cleaner filename if needed
         const displayTitle = session.title;
 
         setConfig({
@@ -50,7 +49,6 @@ const App: React.FC = () => {
           coverUrl: session.coverUrl,
         });
         setAppState(AppState.PLAYER);
-        // Reset player state
         setCurrentTime(0);
         setIsPlaying(false);
         setSeekCommand(null);
@@ -63,6 +61,42 @@ const App: React.FC = () => {
     }
   };
 
+  const handleStartUpload = (options: ProcessingOptions) => {
+      // 1. Set Initial Task State
+      const newTask: UploadTask = {
+          id: 'temp-' + Date.now(),
+          title: options.title,
+          progress: 0,
+          status: 'Initializing...'
+      };
+      setActiveUpload(newTask);
+
+      // 2. Switch to Home Immediately
+      setAppState(AppState.HOME);
+
+      // 3. Start Background Process
+      processAndUploadSession(
+          options,
+          (update) => {
+              setActiveUpload(prev => prev ? { ...prev, ...update } : null);
+          },
+          (sessionId) => {
+             setActiveUpload(null);
+             // Trigger a refresh on Home Page if possible, 
+             // but since HomePage fetches on mount, we might need a signal.
+             // For now, we rely on the user seeing the card disappear or we can force reload.
+             // A simple way is to reset AppState to force HomePage remount or pass a refresh trigger.
+             // But simpler: The list will update on next fetch. 
+             // To force instant update, we can pass a refresh key to HomePage.
+             window.location.reload(); // Simplest way to ensure list is fresh after background upload
+          },
+          (error) => {
+             setActiveUpload(prev => prev ? { ...prev, error, status: 'Failed' } : null);
+             setTimeout(() => setActiveUpload(null), 5000);
+          }
+      );
+  };
+
   const handleEditSession = (session: Session) => {
      setSessionToEdit(session);
      setAppState(AppState.EDIT);
@@ -73,7 +107,7 @@ const App: React.FC = () => {
   };
 
   const handleAnalyze = async (text: string) => {
-    setIsPlaying(false); // Pause video so user can read
+    setIsPlaying(false);
     setSelectedText(text);
     setAiModalOpen(true);
     setAiLoading(true);
@@ -103,6 +137,7 @@ const App: React.FC = () => {
           }}
           onNavigateToPlayer={loadSession}
           onNavigateToEdit={handleEditSession}
+          activeUpload={activeUpload}
         />
       )}
 
@@ -112,6 +147,7 @@ const App: React.FC = () => {
           initialData={appState === AppState.EDIT ? sessionToEdit : undefined}
           onCancel={handleBackToHome}
           onSuccess={(id) => loadSession(id)}
+          onStartUpload={handleStartUpload}
         />
       )}
 

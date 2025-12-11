@@ -1,18 +1,19 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Upload, Music, FileText, PlayCircle, ArrowLeft, Cloud, AlertCircle, Terminal, Copy, ExternalLink, Check, Image as ImageIcon, Languages, Edit2, Loader2, Wand2 } from 'lucide-react';
-import { parseSubtitleFile } from '../services/subtitleParser';
-import { saveSession, updateSession } from '../services/db';
-import { translateSubtitles } from '../services/geminiService';
+import React, { useState, useEffect } from 'react';
+import { Music, FileText, ArrowLeft, Cloud, Edit2, Image as ImageIcon, Languages, Wand2, Loader2 } from 'lucide-react';
 import { extractCoverFromMedia } from '../services/mediaUtils';
 import { Session } from '../types';
+import { updateSession } from '../services/db';
+import { ProcessingOptions } from '../services/sessionProcessor';
+import { parseSubtitleFile } from '../services/subtitleParser'; // Still needed for edit mode or quick valid?
 
 interface SetupFormProps {
   initialData?: Session;
   onCancel: () => void;
   onSuccess: (sessionId: string) => void;
+  onStartUpload?: (options: ProcessingOptions) => void;
 }
 
-const SetupForm: React.FC<SetupFormProps> = ({ initialData, onCancel, onSuccess }) => {
+const SetupForm: React.FC<SetupFormProps> = ({ initialData, onCancel, onSuccess, onStartUpload }) => {
   const isEditMode = !!initialData;
   
   const [title, setTitle] = useState(initialData?.title || '');
@@ -22,38 +23,22 @@ const SetupForm: React.FC<SetupFormProps> = ({ initialData, onCancel, onSuccess 
   
   const [loading, setLoading] = useState(false);
   const [loadingStep, setLoadingStep] = useState(''); 
-  const [progress, setProgress] = useState(0); 
   const [error, setError] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
   
-  // Translation State
   const [autoTranslate, setAutoTranslate] = useState(true);
 
-  // Auto-Cover State
   const [extractingCover, setExtractingCover] = useState(false);
   const [extractedCover, setExtractedCover] = useState<File | null>(null);
 
-  const uploadIntervalRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (uploadIntervalRef.current) window.clearInterval(uploadIntervalRef.current);
-    };
-  }, []);
-
-  // Handle Media Select & Auto-Extract Logic
   const handleMediaSelect = async (file: File | null) => {
     setMediaFile(file);
-    setExtractedCover(null); // Reset previous extraction
+    setExtractedCover(null); 
 
     if (file) {
-        // 1. Auto-fill title if empty
         if (!title && !isEditMode) {
             setTitle(file.name.replace(/\.[^/.]+$/, ""));
         }
-
-        // 2. Try to extract cover
-        if (!coverFile) { // Only extract if user hasn't manually picked one
+        if (!coverFile) { 
             setExtractingCover(true);
             try {
                 const cover = await extractCoverFromMedia(file);
@@ -69,80 +54,29 @@ const SetupForm: React.FC<SetupFormProps> = ({ initialData, onCancel, onSuccess 
     }
   };
 
-  const simulateProgress = (start: number, end: number, durationMs: number) => {
-    if (uploadIntervalRef.current) window.clearInterval(uploadIntervalRef.current);
-    
-    const startTime = Date.now();
-    setProgress(start);
-
-    uploadIntervalRef.current = window.setInterval(() => {
-        const elapsed = Date.now() - startTime;
-        const p = Math.min(elapsed / durationMs, 1);
-        const currentProgress = start + (end - start) * p;
-        setProgress(Math.floor(currentProgress));
-
-        if (p >= 1 && uploadIntervalRef.current) {
-            window.clearInterval(uploadIntervalRef.current);
-        }
-    }, 100);
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    setLoading(true);
-    setProgress(0);
 
     try {
-      // Validation
-      if (!title.trim()) {
-        throw new Error('Please enter a title.');
-      }
-
-      if (!isEditMode && !mediaFile) {
-        throw new Error('Please select an audio or video file.');
-      }
-
-      if (!isEditMode && !subFile) {
-        throw new Error('Please select a subtitle file (.srt or .vtt).');
-      }
-
-      let subtitles = undefined;
-
-      // --- PHASE 1: Parsing & Translating (0% - 50%) ---
+      if (!title.trim()) throw new Error('Please enter a title.');
       
-      if (subFile) {
-        setLoadingStep('Parsing subtitles...');
-        setProgress(2);
-        const parsed = await parseSubtitleFile(subFile);
-        if (parsed.length === 0) {
-          throw new Error('Could not parse any subtitles from the file. Please check the format.');
-        }
-        subtitles = parsed;
-        setProgress(5);
-
-        if (autoTranslate) {
-            setLoadingStep('Initializing AI translator...');
-            try {
-                subtitles = await translateSubtitles(subtitles, (completed, total) => {
-                    const percentage = Math.floor(5 + (completed / total) * 45);
-                    setProgress(percentage);
-                    setLoadingStep(`Translating with AI (${completed}/${total} segments)...`);
-                });
-            } catch (translationErr) {
-                console.error("Translation failed, proceeding with original:", translationErr);
-            }
-        }
-      }
-      setProgress(50);
-
-      // --- PHASE 2: Uploading & Saving (50% - 100%) ---
-      // Decide which cover to use: Manual -> Extracted -> None
-      const finalCoverFile = coverFile || extractedCover;
-
+      // EDIT MODE (Synchronous for now as it is light)
       if (isEditMode && initialData) {
+         setLoading(true);
          setLoadingStep('Updating session...');
-         simulateProgress(50, 90, 2000); 
+         
+         let subtitles = undefined;
+         if (subFile) {
+             setLoadingStep('Parsing new subtitles...');
+             // For edit mode, we parse directly. If we wanted background processing for edit, we'd need more changes.
+             // Assuming edit is rare/small, keep it simple.
+             subtitles = await parseSubtitleFile(subFile);
+             // TODO: Add re-translation logic for edit if needed, but keeping it simple for now.
+         }
+
+         const finalCoverFile = coverFile || extractedCover;
+         
          await updateSession(
             initialData.id, 
             title, 
@@ -150,97 +84,30 @@ const SetupForm: React.FC<SetupFormProps> = ({ initialData, onCancel, onSuccess 
             finalCoverFile || undefined,
             (status) => setLoadingStep(status)
          );
-         setProgress(100);
-         setLoadingStep('Done!');
-         setTimeout(() => onSuccess(initialData.id), 500);
-      } else {
-         if (!mediaFile || !subtitles) return; 
-         
-         const isAudio = mediaFile.type.startsWith('audio');
-         
-         // We don't simulate progress anymore for the main upload, we rely on the callback.
-         // But we set an initial state.
-         setLoadingStep(`Preparing upload (${(mediaFile.size / (1024*1024)).toFixed(1)} MB)...`);
-         
-         const sessionId = await saveSession(
-            title,
-            mediaFile,
-            isAudio ? 'audio' : 'video',
-            subtitles,
-            finalCoverFile || undefined,
-            (status) => setLoadingStep(status),
-            (uploadPercent) => {
-                // Map upload progress (0-100) to overall progress (50-95)
-                const overall = Math.floor(50 + (uploadPercent * 0.45));
-                setProgress(overall);
-                if (uploadPercent < 100) {
-                   // Keep the text updated with % only if we want, but status callback handles text mostly
-                   // We rely on onStatusChange to say "Uploading..."
-                }
-            }
-         );
-         
-         setProgress(100);
-         setLoadingStep('Done!');
-         setTimeout(() => onSuccess(sessionId), 500);
+         setLoading(false);
+         onSuccess(initialData.id);
+         return;
+      }
+
+      // CREATE MODE (Background)
+      if (!mediaFile) throw new Error('Please select an audio or video file.');
+      if (!subFile) throw new Error('Please select a subtitle file (.srt or .vtt).');
+
+      if (onStartUpload) {
+          onStartUpload({
+              title,
+              mediaFile,
+              subFile,
+              coverFile: coverFile || extractedCover,
+              autoTranslate
+          });
       }
 
     } catch (err: any) {
-      if (uploadIntervalRef.current) window.clearInterval(uploadIntervalRef.current);
       setError(err.message || 'An unexpected error occurred.');
       setLoading(false);
-      setLoadingStep('');
-      setProgress(0);
     }
   };
-
-  const handleCopySql = () => {
-    const sql = `-- 1. Initialize Storage (Bucket & Policies)
-insert into storage.buckets (id, name, public) 
-values ('media', 'media', true)
-on conflict (id) do nothing;
-
-create policy "Allow Uploads" on storage.objects 
-for insert to anon with check (bucket_id = 'media');
-
-create policy "Allow Select" on storage.objects 
-for select to anon using (bucket_id = 'media');
-
--- 2. Initialize Database (Table & Policies)
-create table if not exists sessions (
-  id uuid default gen_random_uuid() primary key,
-  title text,
-  media_path text,
-  media_type text,
-  subtitles jsonb,
-  cover_path text,
-  created_at bigint
-);
-
-alter table sessions add column if not exists cover_path text;
-alter table sessions enable row level security;
-
-create policy "Allow All" on sessions 
-for all to anon using (true) with check (true);`;
-
-    navigator.clipboard.writeText(sql);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  const isRlsError = error && (
-    error.toLowerCase().includes('policy') || 
-    error.toLowerCase().includes('permission') || 
-    error.toLowerCase().includes('security')
-  );
-
-  const isSchemaError = error && (
-    error.includes('42703') || 
-    error.includes('cover_path') ||
-    error.toLowerCase().includes('column')
-  );
-
-  const showSqlHelp = isRlsError || isSchemaError;
 
   return (
     <div className="h-full overflow-y-auto bg-slate-50">
@@ -270,7 +137,6 @@ for all to anon using (true) with check (true);`;
 
           <form onSubmit={handleSubmit} className="space-y-6">
             
-            {/* Title Input */}
             <div className="space-y-2">
                 <label htmlFor="title" className="block text-sm font-medium text-slate-700">
                     Title
@@ -287,7 +153,6 @@ for all to anon using (true) with check (true);`;
                 />
             </div>
 
-            {/* Media Upload */}
             {!isEditMode && (
                 <div className="space-y-2">
                 <label className="block text-sm font-medium text-slate-700">Media File (Audio/Video)</label>
@@ -316,7 +181,6 @@ for all to anon using (true) with check (true);`;
                 </div>
             )}
 
-            {/* Subtitle Upload */}
             <div className="space-y-2">
               <label className="block text-sm font-medium text-slate-700">
                   {isEditMode ? 'Replace Subtitles (Optional)' : 'Subtitle File (.srt or .vtt)'}
@@ -345,8 +209,7 @@ for all to anon using (true) with check (true);`;
               </div>
             </div>
 
-            {/* Translation Option */}
-            {(subFile || !isEditMode) && (
+            {(subFile || !isEditMode) && !isEditMode && (
                 <div className={`bg-indigo-50/50 rounded-lg p-3 border border-indigo-100 ${loading ? 'opacity-60 pointer-events-none' : ''}`}>
                     <label className="flex items-start space-x-3 cursor-pointer">
                         <div className="flex items-center h-5">
@@ -371,13 +234,11 @@ for all to anon using (true) with check (true);`;
                 </div>
             )}
 
-            {/* Cover Upload (Optional) */}
             <div className="space-y-2">
               <label className="block text-sm font-medium text-slate-700">
                 {isEditMode ? 'Change Cover Image' : 'Cover Image'} <span className="text-slate-400 font-normal">(Optional)</span>
               </label>
               
-              {/* Show existing cover if in edit mode and no new file selected */}
               {isEditMode && !coverFile && initialData?.coverUrl && !extractedCover && (
                   <div className="mb-2 w-20 h-20 rounded-lg overflow-hidden border border-slate-200">
                       <img src={initialData.coverUrl} className="w-full h-full object-cover" alt="Current Cover" />
@@ -432,88 +293,21 @@ for all to anon using (true) with check (true);`;
 
             {error && (
               <div className="rounded-lg bg-red-50 border border-red-100 p-4 space-y-3">
-                <div className="flex items-start">
-                  <AlertCircle className="w-5 h-5 text-red-600 mt-0.5 mr-3 shrink-0" />
-                  <div className="text-sm text-red-700 font-medium break-words">{error}</div>
-                </div>
-                
-                {showSqlHelp && (
-                  <div className="mt-2 bg-white rounded border border-red-200 overflow-hidden shadow-sm">
-                    <div className="bg-slate-50 px-4 py-2 border-b border-slate-200 flex items-center justify-between">
-                      <span className="text-xs font-semibold text-slate-600 uppercase tracking-wider flex items-center">
-                        <Terminal size={12} className="mr-2" />
-                        Run in Supabase SQL Editor
-                      </span>
-                      <a href="https://supabase.com/dashboard" target="_blank" rel="noopener noreferrer" className="text-xs text-indigo-600 hover:text-indigo-800 flex items-center">
-                        Open Dashboard <ExternalLink size={10} className="ml-1" />
-                      </a>
-                    </div>
-                    <div className="p-3 space-y-2">
-                      <p className="text-xs text-slate-500">
-                        {isSchemaError 
-                           ? "Missing database columns. Run this SQL to update your table structure:"
-                           : "Supabase blocks uploads by default. Run this SQL to fix permissions:"}
-                      </p>
-                      <div className="relative group">
-                        <pre className="bg-slate-900 text-indigo-100 text-[10px] p-3 rounded-md overflow-x-auto overflow-y-auto whitespace-pre-wrap font-mono leading-relaxed h-32">
-                          {`-- 1. Setup Storage
-insert into storage.buckets (id, name, public) values ('media', 'media', true) on conflict (id) do nothing;
-create policy "Public Uploads" on storage.objects for insert to anon with check (bucket_id = 'media');
-create policy "Public Select" on storage.objects for select to anon using (bucket_id = 'media');
-
--- 2. Setup Database
-create table if not exists sessions (
-  id uuid default gen_random_uuid() primary key,
-  title text,
-  media_path text,
-  media_type text,
-  subtitles jsonb,
-  cover_path text,
-  created_at bigint
-);
-alter table sessions add column if not exists cover_path text;
-alter table sessions enable row level security;
-create policy "Public Access" on sessions for all to anon using (true) with check (true);`}
-                        </pre>
-                        <button 
-                            type="button"
-                            onClick={handleCopySql}
-                            className="absolute top-2 right-2 p-1.5 bg-white/10 hover:bg-white/20 text-white rounded transition-colors opacity-0 group-hover:opacity-100 flex items-center gap-1"
-                            title="Copy SQL"
-                        >
-                            {copied ? <Check size={12} className="text-green-400" /> : <Copy size={12} />}
-                            <span className="text-[10px]">{copied ? 'Copied' : 'Copy'}</span>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )}
+                 <p className="text-sm text-red-700 font-medium">{error}</p>
               </div>
             )}
 
-            {/* Submit Button or Progress Bar */}
             {loading ? (
-                <div className="space-y-2">
-                    <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
-                        <div 
-                            className="bg-indigo-600 h-2.5 rounded-full transition-all duration-300 ease-out" 
-                            style={{ width: `${progress}%` }}
-                        />
-                    </div>
-                    <div className="flex items-center justify-between text-xs text-slate-500">
-                        <span className="flex items-center">
-                            <Loader2 size={12} className="animate-spin mr-1.5" />
-                            {loadingStep || 'Processing...'}
-                        </span>
-                        <span className="font-medium text-slate-700">{progress}%</span>
-                    </div>
+                <div className="flex items-center justify-center space-x-2 py-3">
+                     <Loader2 size={18} className="animate-spin text-indigo-600" />
+                     <span className="text-sm text-slate-600 font-medium">{loadingStep}</span>
                 </div>
             ) : (
                 <button
                     type="submit"
                     className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                 >
-                    {isEditMode ? 'Save Changes' : 'Upload & Sync'}
+                    {isEditMode ? 'Save Changes' : 'Start Upload (Background)'}
                 </button>
             )}
             

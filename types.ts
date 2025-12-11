@@ -34,3 +34,11 @@ export interface AIExplanation {
   definition: string;
   context: string;
 }
+
+export interface UploadTask {
+  id: string;
+  title: string;
+  progress: number; // 0-100
+  status: string; // e.g. "Translating...", "Uploading..."
+  error?: string;
+}

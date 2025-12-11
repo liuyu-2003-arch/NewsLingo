@@ -5,7 +5,7 @@ const BUCKET_NAME = 'media';
 const TABLE_NAME = 'sessions';
 
 export interface StoredSession extends Session {
-  mediaUrl: string; // Changed from mediaBlob to mediaUrl for cloud storage
+  mediaUrl: string; 
 }
 
 // Helper for XHR upload with progress
@@ -17,16 +17,12 @@ const uploadFileWithProgress = (
 ): Promise<void> => {
     return new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
-        // Construct standard Supabase Storage API URL
         const url = `${SUPABASE_URL}/storage/v1/object/${bucket}/${path}`;
         
         xhr.open('POST', url);
         xhr.setRequestHeader('Authorization', `Bearer ${SUPABASE_ANON_KEY}`);
         xhr.setRequestHeader('apikey', SUPABASE_ANON_KEY);
-        // Ensure cache control matches what we want
         xhr.setRequestHeader('cache-control', '3600'); 
-        // Important: Upsert false is default for POST. If we wanted upsert, we'd use 'x-upsert': 'true' header if supported or PUT.
-        // Setting content type explicitly
         xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
 
         xhr.upload.onprogress = (e) => {
@@ -65,47 +61,49 @@ export const saveSession = async (
   onUploadProgress?: (percent: number) => void
 ): Promise<string> => {
   
-  // 1. Upload Media File
+  // Prepare paths
   const cleanName = mediaFile.name.replace(/[^a-zA-Z0-9.-]/g, '_');
   const fileName = `${Date.now()}_${cleanName}`;
-  const mediaPath = fileName; // Path in bucket is just filename here
+  const mediaPath = fileName; 
 
+  let coverPath: string | null = null;
+  let coverUploadPromise: Promise<void> = Promise.resolve();
+
+  // 1. Start Cover Upload (Parallel)
+  if (coverFile) {
+    const cleanCoverName = coverFile.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+    const coverFileName = `covers/${Date.now()}_${cleanCoverName}`;
+    coverPath = coverFileName;
+    
+    coverUploadPromise = supabase.storage
+        .from(BUCKET_NAME)
+        .upload(coverFileName, coverFile, {
+            cacheControl: '3600',
+            upsert: false
+        })
+        .then(({ error }) => {
+            if (error) console.warn('Cover upload warning:', error);
+        });
+  }
+
+  // 2. Start Media Upload (Parallel)
   if (onStatusChange) {
       const sizeMB = (mediaFile.size / (1024 * 1024)).toFixed(1);
       onStatusChange(`Uploading media (${sizeMB} MB)...`);
   }
   
+  const mediaUploadPromise = uploadFileWithProgress(BUCKET_NAME, mediaPath, mediaFile, onUploadProgress);
+
+  // 3. Wait for BOTH uploads to complete
   try {
-      await uploadFileWithProgress(BUCKET_NAME, mediaPath, mediaFile, onUploadProgress);
+      await Promise.all([mediaUploadPromise, coverUploadPromise]);
   } catch (error: any) {
-      console.error('Upload Error:', error);
+      console.error('Parallel Upload Error:', error);
       throw new Error(`Upload failed: ${error.message}`);
   }
 
-  // 1b. Upload Cover File (Optional)
-  let coverPath = null;
-  if (coverFile) {
-    if (onStatusChange) onStatusChange('Uploading cover image...');
-    const cleanCoverName = coverFile.name.replace(/[^a-zA-Z0-9.-]/g, '_');
-    const coverFileName = `covers/${Date.now()}_${cleanCoverName}`;
-    
-    // Cover is small, standard upload is fine
-    const { data: coverUploadData, error: coverUploadError } = await supabase.storage
-        .from(BUCKET_NAME)
-        .upload(coverFileName, coverFile, {
-        cacheControl: '3600',
-        upsert: false
-        });
-    
-    if (coverUploadError) {
-        console.warn('Cover upload failed, continuing without cover:', coverUploadError);
-    } else {
-        coverPath = coverUploadData.path;
-    }
-  }
-
-  // 2. Insert Metadata + Subtitles into Supabase Database
-  if (onStatusChange) onStatusChange('Saving session data...');
+  // 4. Insert Metadata
+  if (onStatusChange) onStatusChange('Finalizing...');
   
   const sessionData: any = {
     title: title,
@@ -126,8 +124,7 @@ export const saveSession = async (
     .single();
 
   if (insertError) {
-    console.error('Database Error:', insertError);
-    // Cleanup: try to delete the uploaded file if DB insert fails
+    // Attempt cleanup
     await supabase.storage.from(BUCKET_NAME).remove([mediaPath]);
     throw new Error(`Database save failed: ${insertError.message}`);
   }
@@ -144,7 +141,6 @@ export const updateSession = async (
 ): Promise<void> => {
   let coverPath = undefined;
   
-  // 1. Upload new cover if provided
   if (coverFile) {
     if (onStatusChange) onStatusChange('Uploading new cover...');
     const cleanCoverName = coverFile.name.replace(/[^a-zA-Z0-9.-]/g, '_');
@@ -163,29 +159,18 @@ export const updateSession = async (
     coverPath = coverUploadData.path;
   }
 
-  // 2. Update Database
   if (onStatusChange) onStatusChange('Updating database...');
   
-  const updates: any = { 
-    title,
-  };
-
-  if (subtitles) {
-    updates.subtitles = subtitles;
-  }
-  
-  if (coverPath) {
-    updates.cover_path = coverPath;
-  }
+  const updates: any = { title };
+  if (subtitles) updates.subtitles = subtitles;
+  if (coverPath) updates.cover_path = coverPath;
 
   const { error } = await supabase
     .from(TABLE_NAME)
     .update(updates)
     .eq('id', id);
 
-  if (error) {
-    throw new Error(`Update failed: ${error.message}`);
-  }
+  if (error) throw new Error(`Update failed: ${error.message}`);
 };
 
 export const getAllSessions = async (): Promise<Session[]> => {
@@ -255,27 +240,24 @@ export const getSession = async (id: string): Promise<StoredSession | undefined>
 };
 
 export const deleteSession = async (id: string): Promise<void> => {
-  const { data: session, error: fetchError } = await supabase
-    .from(TABLE_NAME)
-    .select('media_path, cover_path')
-    .eq('id', id)
-    .single();
+  // 1. Try to get paths for cleanup (Best Effort)
+  try {
+      const { data: session } = await supabase
+        .from(TABLE_NAME)
+        .select('media_path, cover_path')
+        .eq('id', id)
+        .single();
 
-  if (fetchError) {
-    throw new Error('Session not found');
+      if (session) {
+          const filesToRemove = [session.media_path];
+          if (session.cover_path) filesToRemove.push(session.cover_path);
+          await supabase.storage.from(BUCKET_NAME).remove(filesToRemove);
+      }
+  } catch (e) {
+      console.warn("Could not cleanup storage files, proceeding to delete DB record", e);
   }
 
-  const filesToRemove = [session.media_path];
-  if (session.cover_path) filesToRemove.push(session.cover_path);
-
-  const { error: storageError } = await supabase.storage
-    .from(BUCKET_NAME)
-    .remove(filesToRemove);
-
-  if (storageError) {
-    console.warn('Failed to delete files from storage, but proceeding to delete DB record.');
-  }
-
+  // 2. Always delete the DB record
   const { error: dbError } = await supabase
     .from(TABLE_NAME)
     .delete()
