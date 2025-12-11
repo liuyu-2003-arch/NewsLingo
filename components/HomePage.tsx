@@ -15,6 +15,7 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigateToUpload, onNavigateToPla
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
+  const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     loadSessions();
@@ -37,12 +38,36 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigateToUpload, onNavigateToPla
   };
 
   const handleDelete = async (e: React.MouseEvent, id: string) => {
-    e.stopPropagation(); // Prevent card click
-    if (window.confirm('Are you sure you want to delete this session? This will remove it from the cloud.')) {
-      await deleteSession(id);
-      loadSessions();
-    }
+    e.stopPropagation(); 
     setMenuOpenId(null);
+
+    // 1. Start Animation: Add to deleting set
+    setDeletingIds(prev => {
+        const next = new Set(prev);
+        next.add(id);
+        return next;
+    });
+
+    // 2. Wait for animation to complete (500ms), then remove from data and call API
+    setTimeout(async () => {
+        // Optimistic UI update: Remove from list immediately
+        setSessions(prev => prev.filter(s => s.id !== id));
+        
+        // Remove from deleting set (cleanup)
+        setDeletingIds(prev => {
+            const next = new Set(prev);
+            next.delete(id);
+            return next;
+        });
+
+        // Actual API Call
+        try {
+            await deleteSession(id);
+        } catch (error) {
+            console.error("Failed to delete session cloud data", error);
+            // Optionally reload if sync failed, but keeping it simple for UX
+        }
+    }, 500);
   };
   
   const handleEdit = (e: React.MouseEvent, session: Session) => {
@@ -123,11 +148,18 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigateToUpload, onNavigateToPla
           </div>
         ) : (
           <div className="space-y-4">
-            {sessions.map((session) => (
+            {sessions.map((session) => {
+              const isDeleting = deletingIds.has(session.id);
+              
+              return (
               <div 
                 key={session.id}
-                onClick={() => onNavigateToPlayer(session.id)}
-                className="group bg-white rounded-2xl p-3 flex gap-4 md:gap-6 items-center shadow-sm border border-slate-100 hover:shadow-lg hover:border-indigo-100 transition-all duration-300 cursor-pointer relative overflow-visible"
+                onClick={() => !isDeleting && onNavigateToPlayer(session.id)}
+                className={`group bg-white rounded-2xl p-3 flex gap-4 md:gap-6 items-center shadow-sm border border-slate-100 transition-all duration-500 ease-in-out cursor-pointer relative overflow-hidden ${
+                    isDeleting 
+                    ? 'opacity-0 translate-x-12 max-h-0 py-0 my-0 border-0 pointer-events-none' 
+                    : 'opacity-100 max-h-64 hover:shadow-lg hover:border-indigo-100'
+                }`}
               >
                 {/* Thumbnail Section */}
                 <div className="relative w-40 md:w-56 aspect-video shrink-0 rounded-xl overflow-hidden bg-slate-100 shadow-inner group-hover:scale-[1.02] transition-transform duration-300">
@@ -191,7 +223,7 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigateToUpload, onNavigateToPla
                     )}
                 </div>
               </div>
-            ))}
+            )})}
           </div>
         )}
       </main>
