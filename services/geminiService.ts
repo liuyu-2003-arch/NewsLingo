@@ -1,7 +1,10 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { SubtitleSegment } from '../types';
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Helper to get client instance
+const getAiClient = () => {
+  return new GoogleGenAI({ apiKey: process.env.API_KEY });
+};
 
 // Helper to clean potential Markdown output from the model
 const cleanJsonOutput = (text: string): string => {
@@ -20,6 +23,7 @@ const cleanJsonOutput = (text: string): string => {
 
 export const explainText = async (text: string, context: string): Promise<string> => {
   try {
+    const ai = getAiClient();
     const prompt = `
       You are an expert English language teacher helping a Chinese student learn from a news broadcast.
       
@@ -37,12 +41,21 @@ export const explainText = async (text: string, context: string): Promise<string
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
       contents: prompt,
+      config: {
+        // Lower safety settings to allow news content (which may contain conflict/violence keywords)
+        safetySettings: [
+          { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_ONLY_HIGH' },
+          { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_ONLY_HIGH' },
+          { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_ONLY_HIGH' },
+          { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_ONLY_HIGH' }
+        ]
+      }
     });
 
     return response.text || "抱歉，暂时无法生成解释。";
-  } catch (error) {
+  } catch (error: any) {
     console.error("Gemini API Error:", error);
-    return "连接 AI 导师时发生错误。";
+    return `连接 AI 导师时发生错误: ${error.message || "Unknown error"}`;
   }
 };
 
@@ -50,7 +63,7 @@ export const translateSubtitles = async (
     subtitles: SubtitleSegment[],
     onProgress?: (completed: number, total: number) => void
 ): Promise<SubtitleSegment[]> => {
-  // Process in batches
+  const ai = getAiClient();
   const BATCH_SIZE = 15; 
   const result: SubtitleSegment[] = [];
 
@@ -84,7 +97,14 @@ export const translateSubtitles = async (
               },
               required: ["id", "translation"]
             }
-          }
+          },
+          // Lower safety settings for news translation
+          safetySettings: [
+            { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_ONLY_HIGH' },
+            { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_ONLY_HIGH' },
+            { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_ONLY_HIGH' },
+            { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_ONLY_HIGH' }
+          ]
         }
       });
 
