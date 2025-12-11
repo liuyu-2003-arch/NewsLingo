@@ -1,3 +1,4 @@
+
 export interface SubtitleSegment {
   id: number;
   startTime: number; // in seconds
@@ -41,4 +42,6 @@ export interface UploadTask {
   progress: number; // 0-100
   status: string; // e.g. "Translating...", "Uploading..."
   error?: string;
+  previewUrl?: string; // Blob URL for immediate display
+  mediaType?: 'audio' | 'video';
 }

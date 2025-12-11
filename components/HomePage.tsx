@@ -92,19 +92,11 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigateToUpload, onNavigateToPla
 insert into storage.buckets (id, name, public) 
 values ('media', 'media', true)
 on conflict (id) do nothing;
-
--- Safely recreate storage policies
+-- Policies
 drop policy if exists "Public Uploads" on storage.objects;
 drop policy if exists "Public Select" on storage.objects;
-drop policy if exists "Allow Uploads" on storage.objects;
-drop policy if exists "Allow Select" on storage.objects;
-
-create policy "Public Uploads" on storage.objects 
-for insert to anon with check (bucket_id = 'media');
-
-create policy "Public Select" on storage.objects 
-for select to anon using (bucket_id = 'media');
-
+create policy "Public Uploads" on storage.objects for insert to anon with check (bucket_id = 'media');
+create policy "Public Select" on storage.objects for select to anon using (bucket_id = 'media');
 -- 2. Initialize Database
 create table if not exists sessions (
   id uuid default gen_random_uuid() primary key,
@@ -115,23 +107,11 @@ create table if not exists sessions (
   cover_path text,
   created_at bigint
 );
-
--- Ensure columns exist
 alter table sessions add column if not exists cover_path text;
-
--- Enable RLS
 alter table sessions enable row level security;
-
--- Safely recreate DB policies
 drop policy if exists "Public Access" on sessions;
-drop policy if exists "Allow All" on sessions;
-
-create policy "Public Access" on sessions 
-for all to anon using (true) with check (true);
-
--- 3. Force Schema Cache Reload (Fixes 'Could not find column' errors)
+create policy "Public Access" on sessions for all to anon using (true) with check (true);
 NOTIFY pgrst, 'reload config';`;
-
     navigator.clipboard.writeText(sql);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -173,7 +153,7 @@ NOTIFY pgrst, 'reload config';`;
         <div className="space-y-4">
             {/* Active Upload Card */}
             {activeUpload && (
-                <div className="bg-white rounded-2xl p-4 shadow-md border border-indigo-100 animate-in fade-in slide-in-from-top-4 relative group">
+                <div className="bg-white rounded-2xl p-3 flex gap-4 md:gap-6 items-center shadow-md border border-indigo-100 relative group animate-in fade-in slide-in-from-top-4">
                     
                     {/* Manual Dismiss Button */}
                     <button 
@@ -181,119 +161,82 @@ NOTIFY pgrst, 'reload config';`;
                             e.stopPropagation();
                             if (onClearUpload) onClearUpload();
                         }}
-                        className="absolute top-3 right-3 p-1.5 text-slate-300 hover:text-slate-500 hover:bg-slate-100 rounded-full transition-colors z-10"
+                        className="absolute top-2 right-2 p-1.5 text-slate-300 hover:text-slate-500 hover:bg-slate-100 rounded-full transition-colors z-10"
                         title="Dismiss"
                     >
                         <X size={16} />
                     </button>
 
-                    <div className="flex items-center space-x-4">
-                        <div className="shrink-0 w-12 h-12 rounded-full bg-indigo-50 flex items-center justify-center">
-                            {activeUpload.error ? (
-                                <AlertCircle className="text-red-500" size={24} />
+                    {/* Thumbnail */}
+                    <div className="relative w-40 md:w-56 aspect-video shrink-0 rounded-xl overflow-hidden bg-slate-100 shadow-inner">
+                         <img 
+                            src={activeUpload.previewUrl || DEFAULT_THUMBNAIL} 
+                            alt={activeUpload.title}
+                            className="w-full h-full object-cover opacity-80"
+                        />
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/10">
+                             {activeUpload.error ? (
+                                <AlertCircle className="text-red-500 bg-white rounded-full" size={24} />
                             ) : (
-                                <Loader2 className="animate-spin text-indigo-600" size={24} />
-                            )}
-                        </div>
-                        <div className="flex-1 min-w-0 pr-8">
-                            <div className="flex justify-between items-center mb-1">
-                                <h3 className="font-semibold text-slate-900 truncate pr-4">{activeUpload.title}</h3>
-                                <span className={`text-xs font-bold ${activeUpload.error ? 'text-red-600' : 'text-indigo-600'}`}>
-                                    {activeUpload.error ? 'Failed' : `${activeUpload.progress}%`}
-                                </span>
-                            </div>
-                            
-                            {!activeUpload.error ? (
-                                <div className="space-y-1">
-                                    <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                                        <div 
-                                            className="bg-indigo-600 h-1.5 rounded-full transition-all duration-500 ease-out"
-                                            style={{ width: `${activeUpload.progress}%` }}
-                                        />
-                                    </div>
-                                    <p className="text-xs text-slate-500 font-mono mt-1">{activeUpload.status}</p>
-                                </div>
-                            ) : (
-                                <p className="text-xs text-red-500">{activeUpload.error}</p>
+                                <Loader2 className="animate-spin text-white" size={24} />
                             )}
                         </div>
                     </div>
 
-                    {/* SQL Help for Errors */}
-                    {activeUpload.error && (
-                        <div className="mt-3 pl-16">
-                             <button 
-                                onClick={() => setShowSqlHelp(!showSqlHelp)}
-                                className="text-xs font-semibold text-indigo-600 hover:underline flex items-center"
-                            >
-                                <Terminal size={12} className="mr-1"/> 
-                                {showSqlHelp ? 'Hide Database Fix' : 'Fix Database Issues'}
-                            </button>
-                            
-                            {showSqlHelp && (
-                                <div className="mt-2 bg-slate-900 rounded-lg overflow-hidden border border-slate-700 shadow-sm relative group">
-                                    <div className="px-3 py-1.5 bg-slate-800 border-b border-slate-700 flex justify-between items-center">
-                                        <span className="text-[10px] text-slate-400 font-mono">Run in Supabase SQL Editor</span>
-                                        <a href="https://supabase.com/dashboard" target="_blank" rel="noopener noreferrer" className="text-[10px] text-indigo-400 hover:text-indigo-300 flex items-center">
-                                            Dashboard <ExternalLink size={10} className="ml-1" />
-                                        </a>
-                                    </div>
-                                    <pre className="p-3 text-[10px] text-indigo-100 font-mono whitespace-pre-wrap h-32 overflow-y-auto">
-{`-- 1. Initialize Storage
-insert into storage.buckets (id, name, public) 
-values ('media', 'media', true)
-on conflict (id) do nothing;
-
--- Safely recreate storage policies
-drop policy if exists "Public Uploads" on storage.objects;
-drop policy if exists "Public Select" on storage.objects;
-drop policy if exists "Allow Uploads" on storage.objects;
-drop policy if exists "Allow Select" on storage.objects;
-
-create policy "Public Uploads" on storage.objects 
-for insert to anon with check (bucket_id = 'media');
-
-create policy "Public Select" on storage.objects 
-for select to anon using (bucket_id = 'media');
-
--- 2. Initialize Database
-create table if not exists sessions (
-  id uuid default gen_random_uuid() primary key,
-  title text,
-  media_path text,
-  media_type text,
-  subtitles jsonb,
-  cover_path text,
-  created_at bigint
-);
-
--- Ensure columns exist
-alter table sessions add column if not exists cover_path text;
-
--- Enable RLS
-alter table sessions enable row level security;
-
--- Safely recreate DB policies
-drop policy if exists "Public Access" on sessions;
-drop policy if exists "Allow All" on sessions;
-
-create policy "Public Access" on sessions 
-for all to anon using (true) with check (true);
-
--- 3. Force Schema Cache Reload (Fixes 'Could not find column' errors)
-NOTIFY pgrst, 'reload config';`}
-                                    </pre>
-                                    <button 
-                                        onClick={handleCopySql}
-                                        className="absolute bottom-2 right-2 p-1.5 bg-white/10 hover:bg-white/20 text-white rounded transition-colors flex items-center gap-1 backdrop-blur-sm"
-                                    >
-                                        {copied ? <Check size={12} className="text-green-400" /> : <Copy size={12} />}
-                                        <span className="text-[10px]">{copied ? 'Copied' : 'Copy SQL'}</span>
-                                    </button>
-                                </div>
-                            )}
+                    {/* Content Section */}
+                    <div className="flex-1 min-w-0 py-1 pr-8 self-stretch flex flex-col justify-center">
+                        {/* Row 1: Title */}
+                        <h3 className="text-lg md:text-xl font-bold text-slate-900 leading-tight line-clamp-2 mb-1.5">
+                            {activeUpload.title}
+                        </h3>
+                        
+                        {/* Row 2: Metadata */}
+                        <div className="flex items-center text-sm font-medium text-slate-500 space-x-2 mb-2">
+                             <span>NBC News</span>
+                             <span className="w-1 h-1 rounded-full bg-slate-300" />
+                             <span className="flex items-center text-slate-400 font-normal">
+                                <Clock size={12} className="mr-1" />
+                                {activeUpload.mediaType === 'audio' ? 'Audio' : 'Video'}
+                            </span>
                         </div>
-                    )}
+
+                        {/* Row 3: Progress Bar & Status (Upload Only) */}
+                        {!activeUpload.error ? (
+                            <div className="w-full">
+                                <div className="flex justify-between items-center mb-1">
+                                     <span className="text-xs text-indigo-600 font-bold">{activeUpload.progress}%</span>
+                                     <span className="text-[10px] text-slate-400 font-mono truncate ml-2">{activeUpload.status}</span>
+                                </div>
+                                <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                                    <div 
+                                        className="bg-indigo-600 h-1.5 rounded-full transition-all duration-300 ease-out"
+                                        style={{ width: `${activeUpload.progress}%` }}
+                                    />
+                                </div>
+                            </div>
+                        ) : (
+                             <div className="text-xs text-red-600 font-medium bg-red-50 p-2 rounded border border-red-100">
+                                Error: {activeUpload.error}
+                                <button 
+                                    onClick={() => setShowSqlHelp(!showSqlHelp)}
+                                    className="ml-2 underline"
+                                >
+                                    Fix DB
+                                </button>
+                             </div>
+                        )}
+                        
+                        {/* SQL Help Inline (Only on error) */}
+                         {activeUpload.error && showSqlHelp && (
+                            <div className="mt-2 bg-slate-800 rounded p-2 relative z-20">
+                                <pre className="text-[10px] text-indigo-100 whitespace-pre-wrap h-20 overflow-y-auto">
+{`-- SQL Fix
+insert into storage.buckets (id, name, public) values ('media', 'media', true) on conflict (id) do nothing;
+-- Policies... (Copy full SQL from edit screen if needed)`}
+                                </pre>
+                            </div>
+                        )}
+                    </div>
                 </div>
             )}
 
@@ -352,10 +295,12 @@ NOTIFY pgrst, 'reload config';`}
                             </div>
 
                             {/* Content Section */}
-                            <div className="flex-1 min-w-0 py-1 pr-8">
+                            <div className="flex-1 min-w-0 py-1 pr-8 self-stretch flex flex-col justify-center">
+                                {/* Row 1 */}
                                 <h3 className="text-lg md:text-xl font-bold text-slate-900 leading-tight line-clamp-2 mb-1.5 group-hover:text-indigo-600 transition-colors">
                                     {getCleanTitle(session.title)}
                                 </h3>
+                                {/* Row 2 */}
                                 <div className="flex items-center text-sm font-medium text-slate-500 space-x-2">
                                     <span>NBC News</span>
                                     <span className="w-1 h-1 rounded-full bg-slate-300" />

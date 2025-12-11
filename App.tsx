@@ -62,12 +62,20 @@ const App: React.FC = () => {
   };
 
   const handleStartUpload = (options: ProcessingOptions) => {
-      // 1. Set Initial Task State
+      // 1. Set Initial Task State with Preview Data
+      const previewUrl = options.coverFile 
+        ? URL.createObjectURL(options.coverFile) 
+        : undefined;
+        
+      const mediaType = options.mediaFile.type.startsWith('audio') ? 'audio' : 'video';
+
       const newTask: UploadTask = {
           id: 'temp-' + Date.now(),
           title: options.title,
           progress: 0,
-          status: 'Initializing...'
+          status: 'Initializing...',
+          previewUrl: previewUrl,
+          mediaType: mediaType
       };
       setActiveUpload(newTask);
 
