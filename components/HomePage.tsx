@@ -1,16 +1,17 @@
 import React, { useEffect, useState } from 'react';
 import { Session } from '../types';
 import { getAllSessions, deleteSession } from '../services/db';
-import { Plus, Play, MoreVertical, Trash2, Clock, Cloud } from 'lucide-react';
+import { Plus, Play, MoreVertical, Trash2, Clock, Cloud, Edit2 } from 'lucide-react';
 
 interface HomePageProps {
   onNavigateToUpload: () => void;
   onNavigateToPlayer: (sessionId: string) => void;
+  onNavigateToEdit: (session: Session) => void;
 }
 
 const DEFAULT_THUMBNAIL = "https://img.youtube.com/vi/F1ZZXaZ_QzY/maxresdefault.jpg";
 
-const HomePage: React.FC<HomePageProps> = ({ onNavigateToUpload, onNavigateToPlayer }) => {
+const HomePage: React.FC<HomePageProps> = ({ onNavigateToUpload, onNavigateToPlayer, onNavigateToEdit }) => {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
@@ -41,6 +42,12 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigateToUpload, onNavigateToPla
       await deleteSession(id);
       loadSessions();
     }
+    setMenuOpenId(null);
+  };
+  
+  const handleEdit = (e: React.MouseEvent, session: Session) => {
+    e.stopPropagation();
+    onNavigateToEdit(session);
     setMenuOpenId(null);
   };
 
@@ -164,13 +171,21 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigateToUpload, onNavigateToPla
                     
                     {/* Dropdown Menu */}
                     {menuOpenId === session.id && (
-                        <div className="absolute right-0 top-10 w-32 bg-white rounded-xl shadow-xl border border-slate-100 py-1 z-20 animate-in fade-in zoom-in-95 duration-100 origin-top-right">
+                        <div className="absolute right-0 top-10 w-40 bg-white rounded-xl shadow-xl border border-slate-100 py-1 z-20 animate-in fade-in zoom-in-95 duration-100 origin-top-right">
+                             <button
+                                onClick={(e) => handleEdit(e, session)}
+                                className="w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 flex items-center font-medium"
+                            >
+                                <Edit2 size={14} className="mr-2" />
+                                Edit Details
+                            </button>
+                            <div className="h-px bg-slate-100 my-1" />
                             <button
                                 onClick={(e) => handleDelete(e, session.id)}
                                 className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 flex items-center font-medium"
                             >
                                 <Trash2 size={14} className="mr-2" />
-                                Delete from Cloud
+                                Delete
                             </button>
                         </div>
                     )}

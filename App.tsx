@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { AppState, VideoConfig } from './types';
+import { AppState, VideoConfig, Session } from './types';
 import SetupForm from './components/SetupForm';
 import HomePage from './components/HomePage';
 import PlayerBar from './components/PlayerBar';
@@ -13,6 +13,7 @@ const App: React.FC = () => {
   const [appState, setAppState] = useState<AppState>(AppState.HOME);
   const [config, setConfig] = useState<VideoConfig | null>(null);
   const [loadingSession, setLoadingSession] = useState(false);
+  const [sessionToEdit, setSessionToEdit] = useState<Session | undefined>(undefined);
   
   // Playback State
   const [isPlaying, setIsPlaying] = useState(false);
@@ -38,15 +39,13 @@ const App: React.FC = () => {
         // Direct URL from Supabase
         const mediaUrl = session.mediaUrl;
         
-        // Clean title logic
-        const cleanTitle = session.title
-            .replace(/\.[^/.]+$/, "")
-            .replace(/\s*\[.*?\]$/, "");
+        // Use exact title stored in DB, fallback to cleaner filename if needed
+        const displayTitle = session.title;
 
         setConfig({
           mediaUrl,
           mediaType: session.mediaType,
-          mediaName: cleanTitle,
+          mediaName: displayTitle,
           subtitles: session.subtitles,
           coverUrl: session.coverUrl,
         });
@@ -62,6 +61,11 @@ const App: React.FC = () => {
     } finally {
       setLoadingSession(false);
     }
+  };
+
+  const handleEditSession = (session: Session) => {
+     setSessionToEdit(session);
+     setAppState(AppState.EDIT);
   };
 
   const handleSubtitleSeek = (time: number) => {
@@ -84,6 +88,7 @@ const App: React.FC = () => {
     setAppState(AppState.HOME);
     setConfig(null); 
     setIsPlaying(false);
+    setSessionToEdit(undefined);
   };
 
   return (
@@ -92,15 +97,20 @@ const App: React.FC = () => {
       {/* HOME VIEW */}
       {appState === AppState.HOME && (
         <HomePage 
-          onNavigateToUpload={() => setAppState(AppState.UPLOAD)}
+          onNavigateToUpload={() => {
+              setSessionToEdit(undefined);
+              setAppState(AppState.UPLOAD);
+          }}
           onNavigateToPlayer={loadSession}
+          onNavigateToEdit={handleEditSession}
         />
       )}
 
-      {/* UPLOAD VIEW */}
-      {appState === AppState.UPLOAD && (
+      {/* UPLOAD / EDIT VIEW */}
+      {(appState === AppState.UPLOAD || appState === AppState.EDIT) && (
         <SetupForm 
-          onCancel={() => setAppState(AppState.HOME)}
+          initialData={appState === AppState.EDIT ? sessionToEdit : undefined}
+          onCancel={handleBackToHome}
           onSuccess={(id) => loadSession(id)}
         />
       )}

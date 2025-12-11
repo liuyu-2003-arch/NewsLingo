@@ -9,6 +9,7 @@ export enum AppState {
   HOME = 'HOME',
   UPLOAD = 'UPLOAD',
   PLAYER = 'PLAYER',
+  EDIT = 'EDIT',
 }
 
 export interface Session {

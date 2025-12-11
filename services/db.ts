@@ -84,6 +84,55 @@ export const saveSession = async (
   return insertData.id;
 };
 
+export const updateSession = async (
+  id: string,
+  title: string,
+  subtitles?: SubtitleSegment[],
+  coverFile?: File
+): Promise<void> => {
+  let coverPath = undefined;
+  
+  // 1. Upload new cover if provided
+  if (coverFile) {
+    const cleanCoverName = coverFile.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+    const coverFileName = `covers/${Date.now()}_${cleanCoverName}`;
+    
+    const { data: coverUploadData, error: coverUploadError } = await supabase.storage
+        .from(BUCKET_NAME)
+        .upload(coverFileName, coverFile, {
+        cacheControl: '3600',
+        upsert: false
+        });
+    
+    if (coverUploadError) {
+        throw new Error(`Cover upload failed: ${coverUploadError.message}`);
+    }
+    coverPath = coverUploadData.path;
+  }
+
+  // 2. Update Database
+  const updates: any = { 
+    title,
+  };
+
+  if (subtitles) {
+    updates.subtitles = subtitles;
+  }
+  
+  if (coverPath) {
+    updates.cover_path = coverPath;
+  }
+
+  const { error } = await supabase
+    .from(TABLE_NAME)
+    .update(updates)
+    .eq('id', id);
+
+  if (error) {
+    throw new Error(`Update failed: ${error.message}`);
+  }
+};
+
 export const getAllSessions = async (): Promise<Session[]> => {
   // Use select('*') to handle cases where schema might not have new columns (like cover_path) yet
   // This prevents the "column does not exist" error from breaking the app load
