@@ -62,8 +62,8 @@ const parseSRT = (data: string): SubtitleSegment[] => {
       if (!startStr || !endStr) return;
 
       const textLines = lines.slice(timeLineIndex + 1);
-      // Join with newline to preserve structure (e.g. English line 1, Chinese line 2)
-      const text = textLines.join('\n').replace(/<[^>]*>/g, ''); 
+      // Merge lines with a space to form a complete sentence
+      const text = textLines.map(l => l.trim()).join(' ').replace(/<[^>]*>/g, ''); 
 
       segments.push({
         id: idCounter++,
@@ -104,8 +104,8 @@ const parseVTT = (data: string): SubtitleSegment[] => {
     if(!startStr || !endStr) return;
 
     const textLines = lines.slice(timeLineIndex + 1);
-    // Join with newline to preserve structure
-    const text = textLines.join('\n').replace(/<[^>]*>/g, ''); 
+    // Merge lines with a space to form a complete sentence
+    const text = textLines.map(l => l.trim()).join(' ').replace(/<[^>]*>/g, ''); 
 
     segments.push({
         id: idCounter++,

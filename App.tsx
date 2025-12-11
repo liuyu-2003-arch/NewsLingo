@@ -47,6 +47,7 @@ const App: React.FC = () => {
           mediaName: displayTitle,
           subtitles: session.subtitles,
           coverUrl: session.coverUrl,
+          category: session.category
         });
         setAppState(AppState.PLAYER);
         setCurrentTime(0);
@@ -72,6 +73,7 @@ const App: React.FC = () => {
       const newTask: UploadTask = {
           id: 'temp-' + Date.now(),
           title: options.title,
+          category: options.category,
           progress: 0,
           status: 'Initializing...',
           previewUrl: previewUrl,

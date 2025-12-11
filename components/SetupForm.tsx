@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Music, FileText, ArrowLeft, Cloud, Edit2, Image as ImageIcon, Languages, Wand2, Loader2, AlertCircle, Terminal, Copy, Check, ExternalLink, Play, Clock } from 'lucide-react';
+import { Music, FileText, ArrowLeft, Cloud, Edit2, Image as ImageIcon, Languages, Wand2, Loader2, AlertCircle, Terminal, Copy, Check, ExternalLink, Play, Clock, Tag } from 'lucide-react';
 import { extractCoverFromMedia } from '../services/mediaUtils';
 import { Session } from '../types';
 import { updateSession } from '../services/db';
@@ -19,6 +19,7 @@ const SetupForm: React.FC<SetupFormProps> = ({ initialData, onCancel, onSuccess,
   const isEditMode = !!initialData;
   
   const [title, setTitle] = useState(initialData?.title || '');
+  const [category, setCategory] = useState(initialData?.category || 'NBC News');
   const [mediaFile, setMediaFile] = useState<File | null>(null);
   const [subFile, setSubFile] = useState<File | null>(null);
   const [coverFile, setCoverFile] = useState<File | null>(null);
@@ -82,6 +83,7 @@ create policy "Public Select" on storage.objects for select to anon using (bucke
 create table if not exists sessions (
   id uuid default gen_random_uuid() primary key,
   title text,
+  category text, 
   media_path text,
   media_type text,
   subtitles jsonb,
@@ -89,6 +91,7 @@ create table if not exists sessions (
   created_at bigint
 );
 alter table sessions add column if not exists cover_path text;
+alter table sessions add column if not exists category text;
 alter table sessions enable row level security;
 drop policy if exists "Public Access" on sessions;
 create policy "Public Access" on sessions for all to anon using (true) with check (true);
@@ -121,7 +124,8 @@ NOTIFY pgrst, 'reload config';`;
          
          await updateSession(
             initialData.id, 
-            title, 
+            title,
+            category,
             subtitles, 
             finalCoverFile || undefined,
             (status) => setLoadingStep(status)
@@ -138,6 +142,7 @@ NOTIFY pgrst, 'reload config';`;
       if (onStartUpload) {
           onStartUpload({
               title,
+              category,
               mediaFile,
               subFile,
               coverFile: coverFile || extractedCover,
@@ -194,7 +199,7 @@ NOTIFY pgrst, 'reload config';`;
 
                     {/* Content Preview & Editing */}
                     <div className="flex-1 min-w-0 pr-2">
-                        <div className="mb-2">
+                        <div className="mb-3">
                             <label htmlFor="title" className="sr-only">Title</label>
                             <input
                                 type="text"
@@ -206,8 +211,20 @@ NOTIFY pgrst, 'reload config';`;
                                 required
                             />
                         </div>
+
+                        {/* Category Edit */}
+                        <div className="flex items-center gap-2 mb-2">
+                             <Tag size={14} className="text-slate-400" />
+                             <input
+                                type="text"
+                                value={category}
+                                onChange={(e) => setCategory(e.target.value)}
+                                className="text-xs font-semibold text-slate-600 bg-slate-100 rounded px-2 py-1 border-0 focus:ring-1 focus:ring-indigo-500 w-32"
+                                placeholder="Category..."
+                             />
+                        </div>
+
                         <div className="flex items-center text-sm font-medium text-slate-500 space-x-2">
-                            <span className="bg-slate-100 px-2 py-0.5 rounded text-xs text-slate-600">NBC News</span>
                             <span className="w-1 h-1 rounded-full bg-slate-300" />
                             <span className="flex items-center text-slate-400 font-normal">
                                 <Clock size={12} className="mr-1" />
@@ -364,6 +381,8 @@ NOTIFY pgrst, 'reload config';`;
 {`-- SQL Fix
 insert into storage.buckets (id, name, public) values ('media', 'media', true) on conflict (id) do nothing;
 create policy "Public Uploads" on storage.objects for insert to anon with check (bucket_id = 'media');
+-- Add category column
+alter table sessions add column if not exists category text;
 NOTIFY pgrst, 'reload config';`}
                                      </pre>
                                      <button onClick={handleCopySql} className="absolute top-2 right-2 text-white bg-white/20 p-1 rounded text-[10px]">Copy</button>

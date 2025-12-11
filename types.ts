@@ -16,6 +16,7 @@ export enum AppState {
 export interface Session {
   id: string;
   title: string;
+  category?: string; // New field for tag/category (e.g. NBC News)
   mediaType: 'audio' | 'video';
   createdAt: number;
   subtitles: SubtitleSegment[];
@@ -28,6 +29,7 @@ export interface VideoConfig {
   mediaName: string;
   subtitles: SubtitleSegment[];
   coverUrl?: string;
+  category?: string;
 }
 
 export interface AIExplanation {
@@ -39,6 +41,7 @@ export interface AIExplanation {
 export interface UploadTask {
   id: string;
   title: string;
+  category?: string; 
   progress: number; // 0-100
   status: string; // e.g. "Translating...", "Uploading..."
   error?: string;

@@ -6,6 +6,7 @@ import { UploadTask } from '../types';
 
 export interface ProcessingOptions {
   title: string;
+  category?: string;
   mediaFile: File;
   subFile: File;
   coverFile: File | null;
@@ -19,7 +20,7 @@ export const processAndUploadSession = async (
   onError: (msg: string) => void
 ) => {
   try {
-    const { title, mediaFile, subFile, coverFile, autoTranslate } = options;
+    const { title, category, mediaFile, subFile, coverFile, autoTranslate } = options;
     const isAudio = mediaFile.type.startsWith('audio');
 
     // 1. Parse Subtitles
@@ -64,6 +65,7 @@ export const processAndUploadSession = async (
 
     const sessionId = await saveSession(
         title,
+        category || 'NBC News',
         mediaFile,
         isAudio ? 'audio' : 'video',
         subtitles,

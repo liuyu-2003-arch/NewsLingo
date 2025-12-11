@@ -53,6 +53,7 @@ const uploadFileWithProgress = (
 
 export const saveSession = async (
   title: string,
+  category: string,
   mediaFile: File,
   mediaType: 'audio' | 'video',
   subtitles: SubtitleSegment[],
@@ -107,6 +108,7 @@ export const saveSession = async (
   
   const sessionData: any = {
     title: title,
+    category: category || 'NBC News',
     media_path: mediaPath,
     media_type: mediaType,
     subtitles: subtitles,
@@ -135,6 +137,7 @@ export const saveSession = async (
 export const updateSession = async (
   id: string,
   title: string,
+  category?: string,
   subtitles?: SubtitleSegment[],
   coverFile?: File,
   onStatusChange?: (status: string) => void
@@ -162,6 +165,7 @@ export const updateSession = async (
   if (onStatusChange) onStatusChange('Updating database...');
   
   const updates: any = { title };
+  if (category) updates.category = category;
   if (subtitles) updates.subtitles = subtitles;
   if (coverPath) updates.cover_path = coverPath;
 
@@ -196,6 +200,7 @@ export const getAllSessions = async (): Promise<Session[]> => {
     return {
         id: item.id,
         title: item.title,
+        category: item.category || 'NBC News',
         mediaType: item.media_type,
         createdAt: item.created_at,
         subtitles: item.subtitles,
@@ -231,6 +236,7 @@ export const getSession = async (id: string): Promise<StoredSession | undefined>
   return {
     id: data.id,
     title: data.title,
+    category: data.category || 'NBC News',
     mediaType: data.media_type,
     createdAt: data.created_at,
     subtitles: data.subtitles,

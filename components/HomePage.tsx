@@ -101,6 +101,7 @@ create policy "Public Select" on storage.objects for select to anon using (bucke
 create table if not exists sessions (
   id uuid default gen_random_uuid() primary key,
   title text,
+  category text,
   media_path text,
   media_type text,
   subtitles jsonb,
@@ -108,6 +109,7 @@ create table if not exists sessions (
   created_at bigint
 );
 alter table sessions add column if not exists cover_path text;
+alter table sessions add column if not exists category text;
 alter table sessions enable row level security;
 drop policy if exists "Public Access" on sessions;
 create policy "Public Access" on sessions for all to anon using (true) with check (true);
@@ -192,7 +194,7 @@ NOTIFY pgrst, 'reload config';`;
                         
                         {/* Row 2: Metadata */}
                         <div className="flex items-center text-sm font-medium text-slate-500 space-x-2 mb-2">
-                             <span>NBC News</span>
+                             <span>{activeUpload.category || 'NBC News'}</span>
                              <span className="w-1 h-1 rounded-full bg-slate-300" />
                              <span className="flex items-center text-slate-400 font-normal">
                                 <Clock size={12} className="mr-1" />
@@ -232,6 +234,8 @@ NOTIFY pgrst, 'reload config';`;
                                 <pre className="text-[10px] text-indigo-100 whitespace-pre-wrap h-20 overflow-y-auto">
 {`-- SQL Fix
 insert into storage.buckets (id, name, public) values ('media', 'media', true) on conflict (id) do nothing;
+-- Add category column
+alter table sessions add column if not exists category text;
 -- Policies... (Copy full SQL from edit screen if needed)`}
                                 </pre>
                             </div>
@@ -302,7 +306,7 @@ insert into storage.buckets (id, name, public) values ('media', 'media', true) o
                                 </h3>
                                 {/* Row 2 */}
                                 <div className="flex items-center text-sm font-medium text-slate-500 space-x-2">
-                                    <span>NBC News</span>
+                                    <span>{session.category || 'NBC News'}</span>
                                     <span className="w-1 h-1 rounded-full bg-slate-300" />
                                     <span className="flex items-center text-slate-400 font-normal">
                                         <Clock size={12} className="mr-1" />
