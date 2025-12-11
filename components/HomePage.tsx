@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Session, UploadTask } from '../types';
 import { getAllSessions, deleteSession } from '../services/db';
-import { Plus, Play, MoreVertical, Trash2, Clock, Cloud, Edit2, Loader2, AlertCircle } from 'lucide-react';
+import { Plus, Play, MoreVertical, Trash2, Clock, Cloud, Edit2, Loader2, AlertCircle, Terminal, Copy, Check, ExternalLink } from 'lucide-react';
 
 interface HomePageProps {
   onNavigateToUpload: () => void;
@@ -17,6 +17,10 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigateToUpload, onNavigateToPla
   const [loading, setLoading] = useState(true);
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
+
+  // SQL Help State
+  const [showSqlHelp, setShowSqlHelp] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     loadSessions();
@@ -42,26 +46,20 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigateToUpload, onNavigateToPla
     e.stopPropagation(); 
     setMenuOpenId(null);
 
-    // 1. Start Animation: Add to deleting set
     setDeletingIds(prev => {
         const next = new Set(prev);
         next.add(id);
         return next;
     });
 
-    // 2. Wait for animation to complete (500ms), then remove from data and call API
     setTimeout(async () => {
-        // Optimistic UI update: Remove from list immediately
         setSessions(prev => prev.filter(s => s.id !== id));
-        
-        // Remove from deleting set (cleanup)
         setDeletingIds(prev => {
             const next = new Set(prev);
             next.delete(id);
             return next;
         });
 
-        // Actual API Call
         try {
             await deleteSession(id);
         } catch (error) {
@@ -88,12 +86,60 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigateToUpload, onNavigateToPla
     return title;
   };
 
+  const handleCopySql = () => {
+    const sql = `-- 1. Initialize Storage
+insert into storage.buckets (id, name, public) 
+values ('media', 'media', true)
+on conflict (id) do nothing;
+
+-- Safely recreate storage policies
+drop policy if exists "Public Uploads" on storage.objects;
+drop policy if exists "Public Select" on storage.objects;
+drop policy if exists "Allow Uploads" on storage.objects;
+drop policy if exists "Allow Select" on storage.objects;
+
+create policy "Public Uploads" on storage.objects 
+for insert to anon with check (bucket_id = 'media');
+
+create policy "Public Select" on storage.objects 
+for select to anon using (bucket_id = 'media');
+
+-- 2. Initialize Database
+create table if not exists sessions (
+  id uuid default gen_random_uuid() primary key,
+  title text,
+  media_path text,
+  media_type text,
+  subtitles jsonb,
+  cover_path text,
+  created_at bigint
+);
+
+-- Ensure columns exist
+alter table sessions add column if not exists cover_path text;
+
+-- Enable RLS
+alter table sessions enable row level security;
+
+-- Safely recreate DB policies
+drop policy if exists "Public Access" on sessions;
+drop policy if exists "Allow All" on sessions;
+
+create policy "Public Access" on sessions 
+for all to anon using (true) with check (true);
+
+-- 3. Force Schema Cache Reload (Fixes 'Could not find column' errors)
+NOTIFY pgrst, 'reload config';`;
+
+    navigator.clipboard.writeText(sql);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   return (
     <div className="min-h-screen bg-[#F9F9FB] text-slate-900 font-sans">
-      {/* Navbar */}
       <nav className="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-slate-200 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center space-x-3">
-            {/* Logo */}
             <div className="w-9 h-9 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-md shadow-indigo-200">
                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                  <path d="M21 15C21 15.5304 20.7893 16.0391 20.4142 16.4142C20.0391 16.7893 19.5304 17 19 17H7L3 21V5C3 4.46957 3.21071 3.96086 3.58579 3.58579C3.96086 3.21071 4.46957 3 5 3H19C19.5304 3 20.0391 3.21071 20.4142 3.58579C20.7893 3.96086 21 4.46957 21 5V15Z" fill="white"/>
@@ -127,35 +173,111 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigateToUpload, onNavigateToPla
         <div className="space-y-4">
             {/* Active Upload Card */}
             {activeUpload && (
-                <div className="bg-white rounded-2xl p-4 shadow-md border border-indigo-100 flex items-center space-x-4 animate-in fade-in slide-in-from-top-4">
-                    <div className="shrink-0 w-12 h-12 rounded-full bg-indigo-50 flex items-center justify-center">
-                        {activeUpload.error ? (
-                            <AlertCircle className="text-red-500" size={24} />
-                        ) : (
-                            <Loader2 className="animate-spin text-indigo-600" size={24} />
-                        )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                        <div className="flex justify-between items-center mb-1">
-                            <h3 className="font-semibold text-slate-900 truncate pr-4">{activeUpload.title}</h3>
-                            <span className={`text-xs font-bold ${activeUpload.error ? 'text-red-600' : 'text-indigo-600'}`}>
-                                {activeUpload.error ? 'Failed' : `${activeUpload.progress}%`}
-                            </span>
+                <div className="bg-white rounded-2xl p-4 shadow-md border border-indigo-100 animate-in fade-in slide-in-from-top-4">
+                    <div className="flex items-center space-x-4">
+                        <div className="shrink-0 w-12 h-12 rounded-full bg-indigo-50 flex items-center justify-center">
+                            {activeUpload.error ? (
+                                <AlertCircle className="text-red-500" size={24} />
+                            ) : (
+                                <Loader2 className="animate-spin text-indigo-600" size={24} />
+                            )}
                         </div>
-                        {activeUpload.error ? (
-                             <p className="text-xs text-red-500">{activeUpload.error}</p>
-                        ) : (
-                            <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                                <div 
-                                    className="bg-indigo-600 h-1.5 rounded-full transition-all duration-500 ease-out"
-                                    style={{ width: `${activeUpload.progress}%` }}
-                                />
+                        <div className="flex-1 min-w-0">
+                            <div className="flex justify-between items-center mb-1">
+                                <h3 className="font-semibold text-slate-900 truncate pr-4">{activeUpload.title}</h3>
+                                <span className={`text-xs font-bold ${activeUpload.error ? 'text-red-600' : 'text-indigo-600'}`}>
+                                    {activeUpload.error ? 'Failed' : `${activeUpload.progress}%`}
+                                </span>
                             </div>
-                        )}
-                        {!activeUpload.error && (
-                            <p className="text-xs text-slate-500 mt-1">{activeUpload.status}</p>
-                        )}
+                            
+                            {!activeUpload.error ? (
+                                <div className="space-y-1">
+                                    <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                                        <div 
+                                            className="bg-indigo-600 h-1.5 rounded-full transition-all duration-500 ease-out"
+                                            style={{ width: `${activeUpload.progress}%` }}
+                                        />
+                                    </div>
+                                    <p className="text-xs text-slate-500">{activeUpload.status}</p>
+                                </div>
+                            ) : (
+                                <p className="text-xs text-red-500">{activeUpload.error}</p>
+                            )}
+                        </div>
                     </div>
+
+                    {/* SQL Help for Errors */}
+                    {activeUpload.error && (
+                        <div className="mt-3 pl-16">
+                             <button 
+                                onClick={() => setShowSqlHelp(!showSqlHelp)}
+                                className="text-xs font-semibold text-indigo-600 hover:underline flex items-center"
+                            >
+                                <Terminal size={12} className="mr-1"/> 
+                                {showSqlHelp ? 'Hide Database Fix' : 'Fix Database Issues'}
+                            </button>
+                            
+                            {showSqlHelp && (
+                                <div className="mt-2 bg-slate-900 rounded-lg overflow-hidden border border-slate-700 shadow-sm relative group">
+                                    <div className="px-3 py-1.5 bg-slate-800 border-b border-slate-700 flex justify-between items-center">
+                                        <span className="text-[10px] text-slate-400 font-mono">Run in Supabase SQL Editor</span>
+                                        <a href="https://supabase.com/dashboard" target="_blank" rel="noopener noreferrer" className="text-[10px] text-indigo-400 hover:text-indigo-300 flex items-center">
+                                            Dashboard <ExternalLink size={10} className="ml-1" />
+                                        </a>
+                                    </div>
+                                    <pre className="p-3 text-[10px] text-indigo-100 font-mono whitespace-pre-wrap h-32 overflow-y-auto">
+{`-- 1. Initialize Storage
+insert into storage.buckets (id, name, public) 
+values ('media', 'media', true)
+on conflict (id) do nothing;
+
+-- Safely recreate storage policies
+drop policy if exists "Public Uploads" on storage.objects;
+drop policy if exists "Public Select" on storage.objects;
+
+create policy "Public Uploads" on storage.objects 
+for insert to anon with check (bucket_id = 'media');
+
+create policy "Public Select" on storage.objects 
+for select to anon using (bucket_id = 'media');
+
+-- 2. Initialize Database
+create table if not exists sessions (
+  id uuid default gen_random_uuid() primary key,
+  title text,
+  media_path text,
+  media_type text,
+  subtitles jsonb,
+  cover_path text,
+  created_at bigint
+);
+
+-- Ensure columns exist
+alter table sessions add column if not exists cover_path text;
+
+-- Enable RLS
+alter table sessions enable row level security;
+
+-- Safely recreate DB policies
+drop policy if exists "Public Access" on sessions;
+
+create policy "Public Access" on sessions 
+for all to anon using (true) with check (true);
+
+-- 3. Force Schema Cache Reload
+NOTIFY pgrst, 'reload config';`}
+                                    </pre>
+                                    <button 
+                                        onClick={handleCopySql}
+                                        className="absolute bottom-2 right-2 p-1.5 bg-white/10 hover:bg-white/20 text-white rounded transition-colors flex items-center gap-1 backdrop-blur-sm"
+                                    >
+                                        {copied ? <Check size={12} className="text-green-400" /> : <Copy size={12} />}
+                                        <span className="text-[10px]">{copied ? 'Copied' : 'Copy SQL'}</span>
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
             )}
 

@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Music, FileText, ArrowLeft, Cloud, Edit2, Image as ImageIcon, Languages, Wand2, Loader2 } from 'lucide-react';
+import { Music, FileText, ArrowLeft, Cloud, Edit2, Image as ImageIcon, Languages, Wand2, Loader2, AlertCircle, Terminal, Copy, Check, ExternalLink } from 'lucide-react';
 import { extractCoverFromMedia } from '../services/mediaUtils';
 import { Session } from '../types';
 import { updateSession } from '../services/db';
 import { ProcessingOptions } from '../services/sessionProcessor';
-import { parseSubtitleFile } from '../services/subtitleParser'; // Still needed for edit mode or quick valid?
+import { parseSubtitleFile } from '../services/subtitleParser';
 
 interface SetupFormProps {
   initialData?: Session;
@@ -24,6 +24,7 @@ const SetupForm: React.FC<SetupFormProps> = ({ initialData, onCancel, onSuccess,
   const [loading, setLoading] = useState(false);
   const [loadingStep, setLoadingStep] = useState(''); 
   const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
   
   const [autoTranslate, setAutoTranslate] = useState(true);
 
@@ -54,6 +55,53 @@ const SetupForm: React.FC<SetupFormProps> = ({ initialData, onCancel, onSuccess,
     }
   };
 
+  const handleCopySql = () => {
+    const sql = `-- 1. Initialize Storage
+insert into storage.buckets (id, name, public) 
+values ('media', 'media', true)
+on conflict (id) do nothing;
+
+-- Safely recreate storage policies
+drop policy if exists "Public Uploads" on storage.objects;
+drop policy if exists "Public Select" on storage.objects;
+
+create policy "Public Uploads" on storage.objects 
+for insert to anon with check (bucket_id = 'media');
+
+create policy "Public Select" on storage.objects 
+for select to anon using (bucket_id = 'media');
+
+-- 2. Initialize Database
+create table if not exists sessions (
+  id uuid default gen_random_uuid() primary key,
+  title text,
+  media_path text,
+  media_type text,
+  subtitles jsonb,
+  cover_path text,
+  created_at bigint
+);
+
+-- Ensure columns exist
+alter table sessions add column if not exists cover_path text;
+
+-- Enable RLS
+alter table sessions enable row level security;
+
+-- Safely recreate DB policies
+drop policy if exists "Public Access" on sessions;
+
+create policy "Public Access" on sessions 
+for all to anon using (true) with check (true);
+
+-- 3. Force Schema Cache Reload
+NOTIFY pgrst, 'reload config';`;
+
+    navigator.clipboard.writeText(sql);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -61,7 +109,7 @@ const SetupForm: React.FC<SetupFormProps> = ({ initialData, onCancel, onSuccess,
     try {
       if (!title.trim()) throw new Error('Please enter a title.');
       
-      // EDIT MODE (Synchronous for now as it is light)
+      // EDIT MODE
       if (isEditMode && initialData) {
          setLoading(true);
          setLoadingStep('Updating session...');
@@ -69,10 +117,7 @@ const SetupForm: React.FC<SetupFormProps> = ({ initialData, onCancel, onSuccess,
          let subtitles = undefined;
          if (subFile) {
              setLoadingStep('Parsing new subtitles...');
-             // For edit mode, we parse directly. If we wanted background processing for edit, we'd need more changes.
-             // Assuming edit is rare/small, keep it simple.
              subtitles = await parseSubtitleFile(subFile);
-             // TODO: Add re-translation logic for edit if needed, but keeping it simple for now.
          }
 
          const finalCoverFile = coverFile || extractedCover;
@@ -293,7 +338,76 @@ const SetupForm: React.FC<SetupFormProps> = ({ initialData, onCancel, onSuccess,
 
             {error && (
               <div className="rounded-lg bg-red-50 border border-red-100 p-4 space-y-3">
-                 <p className="text-sm text-red-700 font-medium">{error}</p>
+                 <div className="flex items-start">
+                    <AlertCircle className="w-5 h-5 text-red-600 mt-0.5 mr-3 shrink-0" />
+                    <div className="text-sm text-red-700 font-medium break-words">{error}</div>
+                 </div>
+                 
+                 {/* SQL Help Section */}
+                 <div className="mt-2 bg-white rounded border border-red-200 overflow-hidden shadow-sm">
+                    <div className="bg-slate-50 px-4 py-2 border-b border-slate-200 flex items-center justify-between">
+                      <span className="text-xs font-semibold text-slate-600 uppercase tracking-wider flex items-center">
+                        <Terminal size={12} className="mr-2" />
+                        Fix in Supabase SQL Editor
+                      </span>
+                      <a href="https://supabase.com/dashboard" target="_blank" rel="noopener noreferrer" className="text-xs text-indigo-600 hover:text-indigo-800 flex items-center">
+                        Open Dashboard <ExternalLink size={10} className="ml-1" />
+                      </a>
+                    </div>
+                    <div className="p-3 relative group">
+                        <pre className="bg-slate-900 text-indigo-100 text-[10px] p-3 rounded-md overflow-x-auto overflow-y-auto whitespace-pre-wrap font-mono leading-relaxed h-32">
+{`-- 1. Initialize Storage
+insert into storage.buckets (id, name, public) 
+values ('media', 'media', true)
+on conflict (id) do nothing;
+
+-- Safely recreate storage policies
+drop policy if exists "Public Uploads" on storage.objects;
+drop policy if exists "Public Select" on storage.objects;
+
+create policy "Public Uploads" on storage.objects 
+for insert to anon with check (bucket_id = 'media');
+
+create policy "Public Select" on storage.objects 
+for select to anon using (bucket_id = 'media');
+
+-- 2. Initialize Database
+create table if not exists sessions (
+  id uuid default gen_random_uuid() primary key,
+  title text,
+  media_path text,
+  media_type text,
+  subtitles jsonb,
+  cover_path text,
+  created_at bigint
+);
+
+-- Ensure columns exist
+alter table sessions add column if not exists cover_path text;
+
+-- Enable RLS
+alter table sessions enable row level security;
+
+-- Safely recreate DB policies
+drop policy if exists "Public Access" on sessions;
+
+create policy "Public Access" on sessions 
+for all to anon using (true) with check (true);
+
+-- 3. Force Schema Cache Reload
+NOTIFY pgrst, 'reload config';`}
+                        </pre>
+                        <button 
+                            type="button"
+                            onClick={handleCopySql}
+                            className="absolute top-5 right-5 p-1.5 bg-white/10 hover:bg-white/20 text-white rounded transition-colors flex items-center gap-1 backdrop-blur-sm"
+                            title="Copy SQL"
+                        >
+                            {copied ? <Check size={12} className="text-green-400" /> : <Copy size={12} />}
+                            <span className="text-[10px]">{copied ? 'Copied' : 'Copy'}</span>
+                        </button>
+                    </div>
+                 </div>
               </div>
             )}
 
