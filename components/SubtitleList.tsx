@@ -63,10 +63,10 @@ const SubtitleList: React.FC<SubtitleListProps> = ({ subtitles, currentTime, onS
               }`}
               onClick={() => onSeek(sub.startTime)}
             >
-              <div className="flex gap-4 items-start">
-                 {/* Left Column: Time & AI Button */}
-                 <div className="flex flex-col items-center gap-3 shrink-0 w-12 mt-1">
-                     <div className={`font-mono text-xs ${isActive ? 'text-indigo-400' : 'text-slate-300'}`}>
+              <div className="flex flex-col gap-1">
+                 {/* Header Row: Time & AI Button */}
+                 <div className="flex items-center justify-between mb-1">
+                     <div className={`font-mono text-xs font-semibold tracking-wide ${isActive ? 'text-indigo-500' : 'text-slate-300'}`}>
                         {new Date(sub.startTime * 1000).toISOString().substr(14, 5)}
                      </div>
                      
@@ -75,19 +75,20 @@ const SubtitleList: React.FC<SubtitleListProps> = ({ subtitles, currentTime, onS
                             e.stopPropagation();
                             onAnalyze(primaryText); // Analyze only the English part
                         }}
-                        className={`p-1.5 rounded-full transition-all duration-200 ${
+                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-all duration-200 ${
                             isActive 
-                            ? 'bg-indigo-100 text-indigo-600 opacity-100' 
+                            ? 'bg-indigo-50 text-indigo-600 opacity-100' 
                             : 'bg-white text-slate-400 opacity-0 group-hover:opacity-100 hover:text-indigo-600 hover:bg-indigo-50 shadow-sm border border-slate-100'
                         }`}
-                        title="Explain with AI"
+                        title="AI Explain"
                      >
-                        <Bot size={16} />
+                        <Bot size={14} />
+                        <span className="hidden sm:inline">AI Explain</span>
                      </button>
                  </div>
 
-                 {/* Right Column: Text Content */}
-                 <div className="flex-1 min-w-0">
+                 {/* Text Content */}
+                 <div className="w-full">
                     {/* Primary Language (English) */}
                     <p 
                         className={`text-lg leading-relaxed transition-colors ${
