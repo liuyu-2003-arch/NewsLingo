@@ -150,11 +150,10 @@ NOTIFY pgrst, 'reload config';`;
         </div>
         <button
             onClick={onNavigateToUpload}
-            className="flex items-center space-x-2 bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-full font-medium text-sm transition-all shadow-sm hover:shadow-md"
+            className="hidden md:flex items-center space-x-2 bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-full font-medium text-sm transition-all shadow-sm hover:shadow-md"
         >
             <Plus size={16} />
-            <span className="hidden sm:inline">Import</span>
-            <span className="sm:hidden">Add</span>
+            <span>Import</span>
         </button>
       </nav>
 
@@ -198,7 +197,7 @@ NOTIFY pgrst, 'reload config';`;
                                             style={{ width: `${activeUpload.progress}%` }}
                                         />
                                     </div>
-                                    <p className="text-xs text-slate-500">{activeUpload.status}</p>
+                                    <p className="text-xs text-slate-500 font-mono mt-1">{activeUpload.status}</p>
                                 </div>
                             ) : (
                                 <p className="text-xs text-red-500">{activeUpload.error}</p>
@@ -234,6 +233,8 @@ on conflict (id) do nothing;
 -- Safely recreate storage policies
 drop policy if exists "Public Uploads" on storage.objects;
 drop policy if exists "Public Select" on storage.objects;
+drop policy if exists "Allow Uploads" on storage.objects;
+drop policy if exists "Allow Select" on storage.objects;
 
 create policy "Public Uploads" on storage.objects 
 for insert to anon with check (bucket_id = 'media');
@@ -260,11 +261,12 @@ alter table sessions enable row level security;
 
 -- Safely recreate DB policies
 drop policy if exists "Public Access" on sessions;
+drop policy if exists "Allow All" on sessions;
 
 create policy "Public Access" on sessions 
 for all to anon using (true) with check (true);
 
--- 3. Force Schema Cache Reload
+-- 3. Force Schema Cache Reload (Fixes 'Could not find column' errors)
 NOTIFY pgrst, 'reload config';`}
                                     </pre>
                                     <button 
@@ -296,12 +298,17 @@ NOTIFY pgrst, 'reload config';`}
                     <p className="text-slate-500 max-w-xs mt-2 mb-6 text-sm leading-relaxed">
                     Upload an NBC Nightly News clip to sync it to all your devices.
                     </p>
+                    {/* Hidden on mobile */}
                     <button 
                         onClick={onNavigateToUpload}
-                        className="text-indigo-600 font-semibold hover:text-indigo-700 text-sm hover:underline"
+                        className="hidden md:inline-block mt-4 text-indigo-600 font-semibold hover:text-indigo-700 text-sm hover:underline"
                     >
                         Upload your first episode
                     </button>
+                    {/* Message for mobile users */}
+                    <p className="md:hidden mt-4 text-xs text-slate-400 italic">
+                        Switch to desktop to upload content.
+                    </p>
                 </div>
             ) : (
                 sessions.map((session) => {

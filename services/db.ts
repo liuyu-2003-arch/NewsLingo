@@ -13,7 +13,7 @@ const uploadFileWithProgress = (
     bucket: string, 
     path: string, 
     file: File, 
-    onProgress?: (percent: number) => void
+    onProgress?: (percent: number, loaded: number, total: number) => void
 ): Promise<void> => {
     return new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
@@ -28,7 +28,7 @@ const uploadFileWithProgress = (
         xhr.upload.onprogress = (e) => {
             if (e.lengthComputable && onProgress) {
                 const percent = (e.loaded / e.total) * 100;
-                onProgress(percent);
+                onProgress(percent, e.loaded, e.total);
             }
         };
 
@@ -58,7 +58,7 @@ export const saveSession = async (
   subtitles: SubtitleSegment[],
   coverFile?: File,
   onStatusChange?: (status: string) => void,
-  onUploadProgress?: (percent: number) => void
+  onUploadProgress?: (percent: number, loaded: number, total: number) => void
 ): Promise<string> => {
   
   // Prepare paths

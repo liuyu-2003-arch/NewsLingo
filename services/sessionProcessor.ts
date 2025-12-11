@@ -59,6 +59,9 @@ export const processAndUploadSession = async (
     // 4. Upload
     onTaskUpdate({ status: 'Starting upload...', progress: 50 });
     
+    // Track start time for speed calculation
+    const uploadStartTime = Date.now();
+
     const sessionId = await saveSession(
         title,
         mediaFile,
@@ -66,12 +69,20 @@ export const processAndUploadSession = async (
         subtitles,
         finalCover || undefined,
         (status) => onTaskUpdate({ status }),
-        (percent) => {
+        (percent, loaded, total) => {
             // Map 0-100 upload to 50-95 overall
             const overall = 50 + Math.floor(percent * 0.45);
+            
+            // Calculate Stats
+            const now = Date.now();
+            const elapsedSeconds = (now - uploadStartTime) / 1000;
+            const loadedMB = (loaded / (1024 * 1024)).toFixed(1);
+            const totalMB = (total / (1024 * 1024)).toFixed(1);
+            const speedMBps = elapsedSeconds > 0 ? ((loaded / (1024 * 1024)) / elapsedSeconds).toFixed(1) : "0.0";
+            
             onTaskUpdate({ 
                 progress: overall, 
-                // Don't overwrite detailed status from saveSession unless needed
+                status: `Uploading: ${loadedMB} MB / ${totalMB} MB (${speedMBps} MB/s)`
             });
         }
     );
