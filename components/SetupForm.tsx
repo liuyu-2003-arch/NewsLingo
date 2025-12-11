@@ -161,7 +161,7 @@ NOTIFY pgrst, 'reload config';`;
       <div className="min-h-full flex flex-col items-center p-4 py-8">
         
         {/* Header Navigation */}
-        <div className="w-full max-w-2xl mb-6 flex items-center justify-between">
+        <div className="w-full max-w-4xl mb-6 flex items-center justify-between">
             <button 
               onClick={onCancel}
               className="flex items-center text-slate-500 hover:text-slate-800 transition-colors"
@@ -175,7 +175,7 @@ NOTIFY pgrst, 'reload config';`;
             <div className="w-16"></div> {/* Spacer */}
         </div>
 
-        <form onSubmit={handleSubmit} className="w-full max-w-2xl space-y-6">
+        <form onSubmit={handleSubmit} className="w-full max-w-4xl space-y-6">
             
             {/* 1. PREVIEW CARD (Editable) */}
             <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-200">
