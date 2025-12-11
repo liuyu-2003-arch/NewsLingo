@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { Play, Pause, SkipBack, SkipForward, Maximize2, Minimize2, Music, AlertCircle } from 'lucide-react';
+import { Play, Pause, RotateCcw, RotateCw, Maximize2, Minimize2, Music } from 'lucide-react';
 
 interface PlayerBarProps {
   mediaUrl: string;
@@ -48,6 +48,42 @@ const PlayerBar: React.FC<PlayerBarProps> = ({
     }
   }, [isPlaying]);
 
+  const togglePlay = () => {
+    onPlayStateChange(!isPlaying);
+  };
+
+  const skip = (seconds: number) => {
+    if (mediaRef.current) {
+      mediaRef.current.currentTime = Math.min(Math.max(0, mediaRef.current.currentTime + seconds), duration);
+    }
+  };
+
+  // Keyboard Shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+        // Prevent triggering when typing in inputs
+        if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') return;
+
+        switch (e.key) {
+            case 'ArrowLeft':
+                e.preventDefault();
+                skip(-10);
+                break;
+            case 'ArrowRight':
+                e.preventDefault();
+                skip(30);
+                break;
+            case ' ': // Spacebar to toggle play
+                e.preventDefault();
+                togglePlay();
+                break;
+        }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isPlaying, duration]); // Dependencies for togglePlay closure
+
   const handleTimeUpdate = () => {
     if (mediaRef.current) {
       onTimeUpdate(mediaRef.current.currentTime);
@@ -81,18 +117,8 @@ const PlayerBar: React.FC<PlayerBarProps> = ({
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const togglePlay = () => {
-    onPlayStateChange(!isPlaying);
-  };
-
-  const skip = (seconds: number) => {
-    if (mediaRef.current) {
-      mediaRef.current.currentTime = Math.min(Math.max(0, mediaRef.current.currentTime + seconds), duration);
-    }
-  };
-
   return (
-    <div className={`fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 shadow-[0_-4px_20px_rgba(0,0,0,0.1)] transition-all duration-500 ease-in-out z-50 ${expanded ? 'h-[60vh]' : 'h-24'}`}>
+    <div className={`fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] transition-all duration-500 ease-in-out z-50 ${expanded ? 'h-[60vh]' : 'h-24'}`}>
       
       {/* Hidden Media Element */}
       <video
@@ -148,7 +174,7 @@ const PlayerBar: React.FC<PlayerBarProps> = ({
         <div className="flex items-center justify-between px-4 md:px-8 h-24 bg-white/95 backdrop-blur-sm z-20">
           
           {/* Media Thumbnail / Icon */}
-          <div className={`relative transition-all duration-500 ease-in-out shadow-lg rounded-lg overflow-hidden bg-white shrink-0 flex items-center justify-center border border-slate-100 ${
+          <div className={`relative transition-all duration-500 ease-in-out shadow-sm rounded-lg overflow-hidden bg-slate-100 shrink-0 flex items-center justify-center border border-slate-200 ${
               expanded 
               ? 'fixed top-20 left-1/2 -translate-x-1/2 h-[calc(60vh-6rem)] w-auto aspect-video z-30 shadow-2xl hidden md:block opacity-0 pointer-events-none' 
               : 'w-32 h-20 aspect-video'
@@ -177,43 +203,43 @@ const PlayerBar: React.FC<PlayerBarProps> = ({
 
           {/* Controls */}
           <div className="flex-1 px-4 md:px-12 flex flex-col justify-center space-y-2">
-             <div className="flex items-center justify-center space-x-6 md:space-x-10">
+             <div className="flex items-center justify-center gap-6 md:gap-8">
+                {/* Back 10s */}
                 <button 
-                  onClick={() => skip(-5)}
-                  className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-colors"
-                  title="-5s"
+                  onClick={() => skip(-10)}
+                  className="group flex items-center gap-1.5 text-slate-500 hover:text-indigo-600 transition-colors px-2 py-1.5 rounded-lg hover:bg-slate-50"
+                  title="Rewind 10s (Left Arrow)"
                 >
-                    <SkipBack size={26} strokeWidth={1.5} />
+                    <RotateCcw size={20} strokeWidth={2} />
+                    <span className="text-xs font-bold font-mono tracking-tight">-10s</span>
                 </button>
 
-                {/* Beautified Play Button */}
+                {/* Flat Play Button */}
                 <button 
                   onClick={togglePlay}
-                  className="relative group p-0 rounded-full transition-transform active:scale-95 outline-none focus:outline-none"
+                  className="w-14 h-14 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center transition-all shadow-lg hover:shadow-indigo-200 hover:scale-105 active:scale-95"
+                  title="Play/Pause (Space)"
                 >
-                    {/* Glow effect */}
-                    <div className="absolute inset-0 rounded-full bg-indigo-500 blur-md opacity-40 group-hover:opacity-60 transition-opacity duration-300"></div>
-                    {/* Button Body */}
-                    <div className="relative w-14 h-14 rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-white shadow-xl shadow-indigo-200 border border-white/20 group-hover:from-indigo-600 group-hover:to-violet-700 transition-all duration-300">
-                        {isPlaying ? (
-                            <Pause size={28} fill="currentColor" className="drop-shadow-sm" />
-                        ) : (
-                            <Play size={28} fill="currentColor" className="ml-1 drop-shadow-sm" />
-                        )}
-                    </div>
+                    {isPlaying ? (
+                        <Pause size={28} fill="currentColor" />
+                    ) : (
+                        <Play size={28} fill="currentColor" className="ml-1" />
+                    )}
                 </button>
 
+                 {/* Forward 30s */}
                  <button 
-                  onClick={() => skip(5)}
-                  className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-colors"
-                  title="+5s"
+                  onClick={() => skip(30)}
+                  className="group flex items-center gap-1.5 text-slate-500 hover:text-indigo-600 transition-colors px-2 py-1.5 rounded-lg hover:bg-slate-50"
+                  title="Forward 30s (Right Arrow)"
                 >
-                    <SkipForward size={26} strokeWidth={1.5} />
+                    <span className="text-xs font-bold font-mono tracking-tight">+30s</span>
+                    <RotateCw size={20} strokeWidth={2} />
                 </button>
              </div>
              
              {/* Progress Bar */}
-             <div className="flex items-center space-x-3 w-full max-w-3xl mx-auto">
+             <div className="flex items-center space-x-3 w-full max-w-3xl mx-auto pt-1">
                 <span className="text-xs font-mono text-slate-400 w-10 text-right">{formatTime(currentTime)}</span>
                 <div className="relative flex-1 h-1.5 group">
                     <input
@@ -225,9 +251,9 @@ const PlayerBar: React.FC<PlayerBarProps> = ({
                         onChange={handleSeek}
                         className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                     />
-                    <div className="absolute inset-0 bg-slate-200 rounded-full overflow-hidden pointer-events-none">
+                    <div className="absolute inset-0 bg-slate-100 rounded-full overflow-hidden pointer-events-none border border-slate-200">
                         <div 
-                            className="h-full bg-indigo-600 transition-all duration-100 ease-linear"
+                            className="h-full bg-indigo-500 transition-all duration-100 ease-linear"
                             style={{ width: `${(currentTime / (duration || 0.1)) * 100}%` }}
                         />
                     </div>

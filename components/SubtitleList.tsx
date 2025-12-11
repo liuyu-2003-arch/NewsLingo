@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useMemo } from 'react';
 import { SubtitleSegment } from '../types';
 import { Bot } from 'lucide-react';
 
@@ -8,6 +8,57 @@ interface SubtitleListProps {
   onSeek: (time: number) => void;
   onAnalyze: (text: string) => void;
 }
+
+// Helper component for word-by-word highlighting
+const KaraokeText: React.FC<{ 
+  text: string; 
+  startTime: number; 
+  endTime: number; 
+  currentTime: number;
+}> = ({ text, startTime, endTime, currentTime }) => {
+  const words = useMemo(() => text.split(' '), [text]);
+  
+  // Calculate progress (0 to 1) within this specific segment
+  const duration = endTime - startTime;
+  const elapsed = Math.max(0, currentTime - startTime);
+  const progress = Math.min(1, elapsed / duration);
+
+  // Estimate current character position based on progress
+  const totalLength = text.length;
+  const currentCharField = Math.floor(totalLength * progress);
+
+  let charCount = 0;
+
+  return (
+    <p className="text-lg leading-relaxed font-medium">
+      {words.map((word, i) => {
+        // Calculate range of characters this word occupies
+        const startChar = charCount;
+        const endChar = charCount + word.length;
+        charCount += word.length + 1; // +1 for space
+
+        // Determine state
+        const isPast = endChar < currentCharField;
+        const isCurrent = currentCharField >= startChar && currentCharField <= endChar;
+
+        return (
+          <span 
+            key={i} 
+            className={`transition-colors duration-75 inline-block mr-1.5 py-0.5 px-0.5 rounded-md ${
+              isCurrent 
+                ? 'text-white bg-indigo-600 shadow-md transform scale-105 font-bold' 
+                : isPast 
+                  ? 'text-slate-900' 
+                  : 'text-slate-400'
+            }`}
+          >
+            {word}
+          </span>
+        );
+      })}
+    </p>
+  );
+};
 
 const SubtitleList: React.FC<SubtitleListProps> = ({ subtitles, currentTime, onSeek, onAnalyze }) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -90,15 +141,22 @@ const SubtitleList: React.FC<SubtitleListProps> = ({ subtitles, currentTime, onS
                  {/* Text Content */}
                  <div className="w-full">
                     {/* Primary Language (English) */}
-                    <p 
-                        className={`text-lg leading-relaxed transition-colors ${
-                        isActive 
-                            ? 'text-slate-900 font-semibold' 
-                            : 'text-slate-500 font-medium'
-                        }`}
-                    >
-                        {primaryText}
-                    </p>
+                    {isActive ? (
+                        <KaraokeText 
+                            text={primaryText}
+                            startTime={sub.startTime}
+                            endTime={sub.endTime}
+                            currentTime={currentTime}
+                        />
+                    ) : (
+                        <p 
+                            className={`text-lg leading-relaxed transition-colors font-medium ${
+                                'text-slate-500'
+                            }`}
+                        >
+                            {primaryText}
+                        </p>
+                    )}
                     
                     {/* Secondary Language (Chinese) */}
                     {secondaryText && (
