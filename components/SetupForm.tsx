@@ -158,10 +158,9 @@ const SetupForm: React.FC<SetupFormProps> = ({ initialData, onCancel, onSuccess 
          
          const isAudio = mediaFile.type.startsWith('audio');
          
-         const sizeMb = mediaFile.size / (1024 * 1024);
-         const estimatedDuration = Math.min(Math.max(sizeMb * 500, 3000), 30000); 
-         
-         simulateProgress(50, 95, estimatedDuration);
+         // We don't simulate progress anymore for the main upload, we rely on the callback.
+         // But we set an initial state.
+         setLoadingStep(`Preparing upload (${(mediaFile.size / (1024*1024)).toFixed(1)} MB)...`);
          
          const sessionId = await saveSession(
             title,
@@ -169,7 +168,16 @@ const SetupForm: React.FC<SetupFormProps> = ({ initialData, onCancel, onSuccess 
             isAudio ? 'audio' : 'video',
             subtitles,
             finalCoverFile || undefined,
-            (status) => setLoadingStep(status)
+            (status) => setLoadingStep(status),
+            (uploadPercent) => {
+                // Map upload progress (0-100) to overall progress (50-95)
+                const overall = Math.floor(50 + (uploadPercent * 0.45));
+                setProgress(overall);
+                if (uploadPercent < 100) {
+                   // Keep the text updated with % only if we want, but status callback handles text mostly
+                   // We rely on onStatusChange to say "Uploading..."
+                }
+            }
          );
          
          setProgress(100);

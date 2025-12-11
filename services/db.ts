@@ -1,5 +1,5 @@
 import { Session, SubtitleSegment } from '../types';
-import { supabase } from './supabaseClient';
+import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from './supabaseClient';
 
 const BUCKET_NAME = 'media';
 const TABLE_NAME = 'sessions';
@@ -8,33 +8,78 @@ export interface StoredSession extends Session {
   mediaUrl: string; // Changed from mediaBlob to mediaUrl for cloud storage
 }
 
+// Helper for XHR upload with progress
+const uploadFileWithProgress = (
+    bucket: string, 
+    path: string, 
+    file: File, 
+    onProgress?: (percent: number) => void
+): Promise<void> => {
+    return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        // Construct standard Supabase Storage API URL
+        const url = `${SUPABASE_URL}/storage/v1/object/${bucket}/${path}`;
+        
+        xhr.open('POST', url);
+        xhr.setRequestHeader('Authorization', `Bearer ${SUPABASE_ANON_KEY}`);
+        xhr.setRequestHeader('apikey', SUPABASE_ANON_KEY);
+        // Ensure cache control matches what we want
+        xhr.setRequestHeader('cache-control', '3600'); 
+        // Important: Upsert false is default for POST. If we wanted upsert, we'd use 'x-upsert': 'true' header if supported or PUT.
+        // Setting content type explicitly
+        xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+
+        xhr.upload.onprogress = (e) => {
+            if (e.lengthComputable && onProgress) {
+                const percent = (e.loaded / e.total) * 100;
+                onProgress(percent);
+            }
+        };
+
+        xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+                resolve();
+            } else {
+                try {
+                    const err = JSON.parse(xhr.responseText);
+                    reject(new Error(err.message || xhr.statusText));
+                } catch {
+                    reject(new Error(`Upload failed with status ${xhr.status}`));
+                }
+            }
+        };
+
+        xhr.onerror = () => reject(new Error('Network error during upload'));
+        
+        xhr.send(file);
+    });
+};
+
 export const saveSession = async (
   title: string,
   mediaFile: File,
   mediaType: 'audio' | 'video',
   subtitles: SubtitleSegment[],
   coverFile?: File,
-  onStatusChange?: (status: string) => void
+  onStatusChange?: (status: string) => void,
+  onUploadProgress?: (percent: number) => void
 ): Promise<string> => {
   
-  // 1. Upload Media File to Supabase Storage
-  if (onStatusChange) onStatusChange('Uploading media file...');
-  
-  // Sanitize filename to ensure compatibility
+  // 1. Upload Media File
   const cleanName = mediaFile.name.replace(/[^a-zA-Z0-9.-]/g, '_');
   const fileName = `${Date.now()}_${cleanName}`;
-  
-  const { data: uploadData, error: uploadError } = await supabase.storage
-    .from(BUCKET_NAME)
-    .upload(fileName, mediaFile, {
-      cacheControl: '3600',
-      upsert: false
-    });
+  const mediaPath = fileName; // Path in bucket is just filename here
 
-  if (uploadError) {
-    console.error('Upload Error:', uploadError);
-    // Show the specific error message (likely "new row violates row-level security policy")
-    throw new Error(`Upload failed: ${uploadError.message}`);
+  if (onStatusChange) {
+      const sizeMB = (mediaFile.size / (1024 * 1024)).toFixed(1);
+      onStatusChange(`Uploading media (${sizeMB} MB)...`);
+  }
+  
+  try {
+      await uploadFileWithProgress(BUCKET_NAME, mediaPath, mediaFile, onUploadProgress);
+  } catch (error: any) {
+      console.error('Upload Error:', error);
+      throw new Error(`Upload failed: ${error.message}`);
   }
 
   // 1b. Upload Cover File (Optional)
@@ -44,6 +89,7 @@ export const saveSession = async (
     const cleanCoverName = coverFile.name.replace(/[^a-zA-Z0-9.-]/g, '_');
     const coverFileName = `covers/${Date.now()}_${cleanCoverName}`;
     
+    // Cover is small, standard upload is fine
     const { data: coverUploadData, error: coverUploadError } = await supabase.storage
         .from(BUCKET_NAME)
         .upload(coverFileName, coverFile, {
@@ -61,10 +107,9 @@ export const saveSession = async (
   // 2. Insert Metadata + Subtitles into Supabase Database
   if (onStatusChange) onStatusChange('Saving session data...');
   
-  // Construct the object dynamically to be cleaner, though Supabase might strict check keys against columns
   const sessionData: any = {
     title: title,
-    media_path: uploadData.path,
+    media_path: mediaPath,
     media_type: mediaType,
     subtitles: subtitles,
     created_at: Date.now()
@@ -83,7 +128,7 @@ export const saveSession = async (
   if (insertError) {
     console.error('Database Error:', insertError);
     // Cleanup: try to delete the uploaded file if DB insert fails
-    await supabase.storage.from(BUCKET_NAME).remove([uploadData.path]);
+    await supabase.storage.from(BUCKET_NAME).remove([mediaPath]);
     throw new Error(`Database save failed: ${insertError.message}`);
   }
 
@@ -144,8 +189,6 @@ export const updateSession = async (
 };
 
 export const getAllSessions = async (): Promise<Session[]> => {
-  // Use select('*') to handle cases where schema might not have new columns (like cover_path) yet
-  // This prevents the "column does not exist" error from breaking the app load
   const { data, error } = await supabase
     .from(TABLE_NAME)
     .select('*') 
@@ -156,7 +199,6 @@ export const getAllSessions = async (): Promise<Session[]> => {
     throw new Error(`Failed to load sessions: ${error.message}`);
   }
 
-  // Map snake_case database fields to camelCase interface properties
   return (data || []).map((item: any) => {
     let coverUrl = undefined;
     if (item.cover_path) {
@@ -178,7 +220,6 @@ export const getAllSessions = async (): Promise<Session[]> => {
 };
 
 export const getSession = async (id: string): Promise<StoredSession | undefined> => {
-  // 1. Get Session Data
   const { data, error } = await supabase
     .from(TABLE_NAME)
     .select('*')
@@ -190,12 +231,10 @@ export const getSession = async (id: string): Promise<StoredSession | undefined>
     return undefined;
   }
 
-  // 2. Get Public URL for the media
   const { data: publicUrlData } = supabase.storage
     .from(BUCKET_NAME)
     .getPublicUrl(data.media_path);
   
-  // 3. Get Public URL for cover
   let coverUrl = undefined;
   if (data.cover_path) {
       const { data: coverUrlData } = supabase.storage
@@ -216,7 +255,6 @@ export const getSession = async (id: string): Promise<StoredSession | undefined>
 };
 
 export const deleteSession = async (id: string): Promise<void> => {
-  // 1. Get the media path first so we can delete the file
   const { data: session, error: fetchError } = await supabase
     .from(TABLE_NAME)
     .select('media_path, cover_path')
@@ -227,7 +265,6 @@ export const deleteSession = async (id: string): Promise<void> => {
     throw new Error('Session not found');
   }
 
-  // 2. Delete from Storage
   const filesToRemove = [session.media_path];
   if (session.cover_path) filesToRemove.push(session.cover_path);
 
@@ -239,7 +276,6 @@ export const deleteSession = async (id: string): Promise<void> => {
     console.warn('Failed to delete files from storage, but proceeding to delete DB record.');
   }
 
-  // 3. Delete from Database
   const { error: dbError } = await supabase
     .from(TABLE_NAME)
     .delete()
