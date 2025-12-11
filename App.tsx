@@ -82,17 +82,12 @@ const App: React.FC = () => {
           },
           (sessionId) => {
              setActiveUpload(null);
-             // Trigger a refresh on Home Page if possible, 
-             // but since HomePage fetches on mount, we might need a signal.
-             // For now, we rely on the user seeing the card disappear or we can force reload.
-             // A simple way is to reset AppState to force HomePage remount or pass a refresh trigger.
-             // But simpler: The list will update on next fetch. 
-             // To force instant update, we can pass a refresh key to HomePage.
-             window.location.reload(); // Simplest way to ensure list is fresh after background upload
+             // Trigger a refresh on Home Page if possible
+             window.location.reload(); 
           },
           (error) => {
+             // Error persists until manually dismissed
              setActiveUpload(prev => prev ? { ...prev, error, status: 'Failed' } : null);
-             setTimeout(() => setActiveUpload(null), 5000);
           }
       );
   };
@@ -138,6 +133,7 @@ const App: React.FC = () => {
           onNavigateToPlayer={loadSession}
           onNavigateToEdit={handleEditSession}
           activeUpload={activeUpload}
+          onClearUpload={() => setActiveUpload(null)}
         />
       )}
 

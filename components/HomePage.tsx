@@ -1,18 +1,19 @@
 import React, { useEffect, useState } from 'react';
 import { Session, UploadTask } from '../types';
 import { getAllSessions, deleteSession } from '../services/db';
-import { Plus, Play, MoreVertical, Trash2, Clock, Cloud, Edit2, Loader2, AlertCircle, Terminal, Copy, Check, ExternalLink } from 'lucide-react';
+import { Plus, Play, MoreVertical, Trash2, Clock, Cloud, Edit2, Loader2, AlertCircle, Terminal, Copy, Check, ExternalLink, X } from 'lucide-react';
 
 interface HomePageProps {
   onNavigateToUpload: () => void;
   onNavigateToPlayer: (sessionId: string) => void;
   onNavigateToEdit: (session: Session) => void;
   activeUpload?: UploadTask | null;
+  onClearUpload?: () => void;
 }
 
 const DEFAULT_THUMBNAIL = "https://img.youtube.com/vi/F1ZZXaZ_QzY/maxresdefault.jpg";
 
-const HomePage: React.FC<HomePageProps> = ({ onNavigateToUpload, onNavigateToPlayer, onNavigateToEdit, activeUpload }) => {
+const HomePage: React.FC<HomePageProps> = ({ onNavigateToUpload, onNavigateToPlayer, onNavigateToEdit, activeUpload, onClearUpload }) => {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
@@ -172,7 +173,20 @@ NOTIFY pgrst, 'reload config';`;
         <div className="space-y-4">
             {/* Active Upload Card */}
             {activeUpload && (
-                <div className="bg-white rounded-2xl p-4 shadow-md border border-indigo-100 animate-in fade-in slide-in-from-top-4">
+                <div className="bg-white rounded-2xl p-4 shadow-md border border-indigo-100 animate-in fade-in slide-in-from-top-4 relative group">
+                    
+                    {/* Manual Dismiss Button */}
+                    <button 
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            if (onClearUpload) onClearUpload();
+                        }}
+                        className="absolute top-3 right-3 p-1.5 text-slate-300 hover:text-slate-500 hover:bg-slate-100 rounded-full transition-colors z-10"
+                        title="Dismiss"
+                    >
+                        <X size={16} />
+                    </button>
+
                     <div className="flex items-center space-x-4">
                         <div className="shrink-0 w-12 h-12 rounded-full bg-indigo-50 flex items-center justify-center">
                             {activeUpload.error ? (
@@ -181,7 +195,7 @@ NOTIFY pgrst, 'reload config';`;
                                 <Loader2 className="animate-spin text-indigo-600" size={24} />
                             )}
                         </div>
-                        <div className="flex-1 min-w-0">
+                        <div className="flex-1 min-w-0 pr-8">
                             <div className="flex justify-between items-center mb-1">
                                 <h3 className="font-semibold text-slate-900 truncate pr-4">{activeUpload.title}</h3>
                                 <span className={`text-xs font-bold ${activeUpload.error ? 'text-red-600' : 'text-indigo-600'}`}>
