@@ -224,10 +224,10 @@ NOTIFY pgrst, 'reload config';`;
                              />
                         </div>
 
-                        <div className="flex items-center text-sm font-medium text-slate-500 space-x-2">
-                            <span className="w-1 h-1 rounded-full bg-slate-300" />
-                            <span className="flex items-center text-slate-400 font-normal">
-                                <Clock size={12} className="mr-1" />
+                        {/* Media Type Info - Aligned with Category */}
+                        <div className="flex items-center gap-2">
+                             <Clock size={14} className="text-slate-400" />
+                             <span className="text-xs font-semibold text-slate-400">
                                 {displayMediaType}
                             </span>
                         </div>
