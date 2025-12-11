@@ -13,10 +13,13 @@ export const saveSession = async (
   mediaFile: File,
   mediaType: 'audio' | 'video',
   subtitles: SubtitleSegment[],
-  coverFile?: File
+  coverFile?: File,
+  onStatusChange?: (status: string) => void
 ): Promise<string> => {
   
   // 1. Upload Media File to Supabase Storage
+  if (onStatusChange) onStatusChange('Uploading media file...');
+  
   // Sanitize filename to ensure compatibility
   const cleanName = mediaFile.name.replace(/[^a-zA-Z0-9.-]/g, '_');
   const fileName = `${Date.now()}_${cleanName}`;
@@ -37,6 +40,7 @@ export const saveSession = async (
   // 1b. Upload Cover File (Optional)
   let coverPath = null;
   if (coverFile) {
+    if (onStatusChange) onStatusChange('Uploading cover image...');
     const cleanCoverName = coverFile.name.replace(/[^a-zA-Z0-9.-]/g, '_');
     const coverFileName = `covers/${Date.now()}_${cleanCoverName}`;
     
@@ -55,6 +59,8 @@ export const saveSession = async (
   }
 
   // 2. Insert Metadata + Subtitles into Supabase Database
+  if (onStatusChange) onStatusChange('Saving session data...');
+  
   // Construct the object dynamically to be cleaner, though Supabase might strict check keys against columns
   const sessionData: any = {
     title: title,
@@ -88,12 +94,14 @@ export const updateSession = async (
   id: string,
   title: string,
   subtitles?: SubtitleSegment[],
-  coverFile?: File
+  coverFile?: File,
+  onStatusChange?: (status: string) => void
 ): Promise<void> => {
   let coverPath = undefined;
   
   // 1. Upload new cover if provided
   if (coverFile) {
+    if (onStatusChange) onStatusChange('Uploading new cover...');
     const cleanCoverName = coverFile.name.replace(/[^a-zA-Z0-9.-]/g, '_');
     const coverFileName = `covers/${Date.now()}_${cleanCoverName}`;
     
@@ -111,6 +119,8 @@ export const updateSession = async (
   }
 
   // 2. Update Database
+  if (onStatusChange) onStatusChange('Updating database...');
+  
   const updates: any = { 
     title,
   };
