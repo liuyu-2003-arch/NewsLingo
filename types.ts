@@ -17,6 +17,7 @@ export interface Session {
   mediaType: 'audio' | 'video';
   createdAt: number;
   subtitles: SubtitleSegment[];
+  coverUrl?: string;
 }
 
 export interface VideoConfig {
@@ -24,6 +25,7 @@ export interface VideoConfig {
   mediaType: 'audio' | 'video';
   mediaName: string;
   subtitles: SubtitleSegment[];
+  coverUrl?: string;
 }
 
 export interface AIExplanation {

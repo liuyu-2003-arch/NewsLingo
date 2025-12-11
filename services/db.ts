@@ -12,7 +12,8 @@ export const saveSession = async (
   title: string,
   mediaFile: File,
   mediaType: 'audio' | 'video',
-  subtitles: SubtitleSegment[]
+  subtitles: SubtitleSegment[],
+  coverFile?: File
 ): Promise<string> => {
   
   // 1. Upload Media File to Supabase Storage
@@ -33,18 +34,43 @@ export const saveSession = async (
     throw new Error(`Upload failed: ${uploadError.message}`);
   }
 
+  // 1b. Upload Cover File (Optional)
+  let coverPath = null;
+  if (coverFile) {
+    const cleanCoverName = coverFile.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+    const coverFileName = `covers/${Date.now()}_${cleanCoverName}`;
+    
+    const { data: coverUploadData, error: coverUploadError } = await supabase.storage
+        .from(BUCKET_NAME)
+        .upload(coverFileName, coverFile, {
+        cacheControl: '3600',
+        upsert: false
+        });
+    
+    if (coverUploadError) {
+        console.warn('Cover upload failed, continuing without cover:', coverUploadError);
+    } else {
+        coverPath = coverUploadData.path;
+    }
+  }
+
   // 2. Insert Metadata + Subtitles into Supabase Database
+  // Construct the object dynamically to be cleaner, though Supabase might strict check keys against columns
+  const sessionData: any = {
+    title: title,
+    media_path: uploadData.path,
+    media_type: mediaType,
+    subtitles: subtitles,
+    created_at: Date.now()
+  };
+
+  if (coverPath) {
+    sessionData.cover_path = coverPath;
+  }
+
   const { data: insertData, error: insertError } = await supabase
     .from(TABLE_NAME)
-    .insert([
-      {
-        title: title,
-        media_path: uploadData.path, // Store the path to retrieve URL later
-        media_type: mediaType,
-        subtitles: subtitles, // Store JSON directly
-        created_at: Date.now()
-      }
-    ])
+    .insert([sessionData])
     .select()
     .single();
 
@@ -59,9 +85,11 @@ export const saveSession = async (
 };
 
 export const getAllSessions = async (): Promise<Session[]> => {
+  // Use select('*') to handle cases where schema might not have new columns (like cover_path) yet
+  // This prevents the "column does not exist" error from breaking the app load
   const { data, error } = await supabase
     .from(TABLE_NAME)
-    .select('id, title, media_type, created_at, subtitles') // Select minimal fields
+    .select('*') 
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -70,13 +98,24 @@ export const getAllSessions = async (): Promise<Session[]> => {
   }
 
   // Map snake_case database fields to camelCase interface properties
-  return (data || []).map((item: any) => ({
-    id: item.id,
-    title: item.title,
-    mediaType: item.media_type,
-    createdAt: item.created_at,
-    subtitles: item.subtitles
-  }));
+  return (data || []).map((item: any) => {
+    let coverUrl = undefined;
+    if (item.cover_path) {
+        const { data: publicUrlData } = supabase.storage
+            .from(BUCKET_NAME)
+            .getPublicUrl(item.cover_path);
+        coverUrl = publicUrlData.publicUrl;
+    }
+
+    return {
+        id: item.id,
+        title: item.title,
+        mediaType: item.media_type,
+        createdAt: item.created_at,
+        subtitles: item.subtitles,
+        coverUrl: coverUrl
+    };
+  });
 };
 
 export const getSession = async (id: string): Promise<StoredSession | undefined> => {
@@ -96,6 +135,15 @@ export const getSession = async (id: string): Promise<StoredSession | undefined>
   const { data: publicUrlData } = supabase.storage
     .from(BUCKET_NAME)
     .getPublicUrl(data.media_path);
+  
+  // 3. Get Public URL for cover
+  let coverUrl = undefined;
+  if (data.cover_path) {
+      const { data: coverUrlData } = supabase.storage
+        .from(BUCKET_NAME)
+        .getPublicUrl(data.cover_path);
+      coverUrl = coverUrlData.publicUrl;
+  }
 
   return {
     id: data.id,
@@ -103,7 +151,8 @@ export const getSession = async (id: string): Promise<StoredSession | undefined>
     mediaType: data.media_type,
     createdAt: data.created_at,
     subtitles: data.subtitles,
-    mediaUrl: publicUrlData.publicUrl
+    mediaUrl: publicUrlData.publicUrl,
+    coverUrl: coverUrl
   };
 };
 
@@ -111,7 +160,7 @@ export const deleteSession = async (id: string): Promise<void> => {
   // 1. Get the media path first so we can delete the file
   const { data: session, error: fetchError } = await supabase
     .from(TABLE_NAME)
-    .select('media_path')
+    .select('media_path, cover_path')
     .eq('id', id)
     .single();
 
@@ -120,12 +169,15 @@ export const deleteSession = async (id: string): Promise<void> => {
   }
 
   // 2. Delete from Storage
+  const filesToRemove = [session.media_path];
+  if (session.cover_path) filesToRemove.push(session.cover_path);
+
   const { error: storageError } = await supabase.storage
     .from(BUCKET_NAME)
-    .remove([session.media_path]);
+    .remove(filesToRemove);
 
   if (storageError) {
-    console.warn('Failed to delete file from storage, but proceeding to delete DB record.');
+    console.warn('Failed to delete files from storage, but proceeding to delete DB record.');
   }
 
   // 3. Delete from Database

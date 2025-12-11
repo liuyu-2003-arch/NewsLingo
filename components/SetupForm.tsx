@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Upload, Music, FileText, PlayCircle, ArrowLeft, Cloud, AlertCircle, Terminal, Copy, ExternalLink, Check } from 'lucide-react';
+import { Upload, Music, FileText, PlayCircle, ArrowLeft, Cloud, AlertCircle, Terminal, Copy, ExternalLink, Check, Image as ImageIcon } from 'lucide-react';
 import { parseSubtitleFile } from '../services/subtitleParser';
 import { saveSession } from '../services/db';
 
@@ -11,6 +11,7 @@ interface SetupFormProps {
 const SetupForm: React.FC<SetupFormProps> = ({ onCancel, onSuccess }) => {
   const [mediaFile, setMediaFile] = useState<File | null>(null);
   const [subFile, setSubFile] = useState<File | null>(null);
+  const [coverFile, setCoverFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -42,7 +43,8 @@ const SetupForm: React.FC<SetupFormProps> = ({ onCancel, onSuccess }) => {
         mediaFile.name,
         mediaFile,
         isAudio ? 'audio' : 'video',
-        subtitles
+        subtitles,
+        coverFile || undefined
       );
 
       onSuccess(sessionId);
@@ -72,9 +74,11 @@ create table if not exists sessions (
   media_path text,
   media_type text,
   subtitles jsonb,
+  cover_path text,
   created_at bigint
 );
 
+alter table sessions add column if not exists cover_path text;
 alter table sessions enable row level security;
 
 create policy "Allow All" on sessions 
@@ -90,6 +94,14 @@ for all to anon using (true) with check (true);`;
     error.toLowerCase().includes('permission') || 
     error.toLowerCase().includes('security')
   );
+
+  const isSchemaError = error && (
+    error.includes('42703') || 
+    error.includes('cover_path') ||
+    error.toLowerCase().includes('column')
+  );
+
+  const showSqlHelp = isRlsError || isSchemaError;
 
   return (
     <div className="h-full overflow-y-auto bg-slate-50">
@@ -167,6 +179,42 @@ for all to anon using (true) with check (true);`;
               </div>
             </div>
 
+            {/* Cover Upload (Optional) */}
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-slate-700">
+                3. Cover Image <span className="text-slate-400 font-normal">(Optional)</span>
+              </label>
+              <div className={`mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-dashed rounded-lg transition-colors bg-slate-50 ${coverFile ? 'border-indigo-400 bg-indigo-50/30' : 'border-slate-300 hover:border-indigo-400'}`}>
+                <div className="space-y-1 text-center w-full">
+                  {coverFile ? (
+                     <img 
+                        src={URL.createObjectURL(coverFile)} 
+                        alt="Preview" 
+                        className="mx-auto h-16 w-16 object-cover rounded-lg shadow-sm"
+                     />
+                  ) : (
+                     <ImageIcon className="mx-auto h-12 w-12 text-slate-400" />
+                  )}
+                  <div className="flex text-sm text-slate-600 justify-center">
+                    <label htmlFor="cover-upload" className="relative cursor-pointer rounded-md font-medium text-indigo-600 hover:text-indigo-500 focus-within:outline-none">
+                      <span>{coverFile ? 'Change image' : 'Select Image'}</span>
+                      <input
+                        id="cover-upload"
+                        name="cover-upload"
+                        type="file"
+                        accept="image/*"
+                        className="sr-only"
+                        onChange={(e) => setCoverFile(e.target.files ? e.target.files[0] : null)}
+                      />
+                    </label>
+                  </div>
+                  <p className="text-xs text-slate-500 truncate px-4">
+                    {coverFile ? coverFile.name : "JPG, PNG"}
+                  </p>
+                </div>
+              </div>
+            </div>
+
             {error && (
               <div className="rounded-lg bg-red-50 border border-red-100 p-4 space-y-3">
                 <div className="flex items-start">
@@ -174,7 +222,7 @@ for all to anon using (true) with check (true);`;
                   <div className="text-sm text-red-700 font-medium break-words">{error}</div>
                 </div>
                 
-                {isRlsError && (
+                {showSqlHelp && (
                   <div className="mt-2 bg-white rounded border border-red-200 overflow-hidden shadow-sm">
                     <div className="bg-slate-50 px-4 py-2 border-b border-slate-200 flex items-center justify-between">
                       <span className="text-xs font-semibold text-slate-600 uppercase tracking-wider flex items-center">
@@ -187,7 +235,9 @@ for all to anon using (true) with check (true);`;
                     </div>
                     <div className="p-3 space-y-2">
                       <p className="text-xs text-slate-500">
-                        Supabase blocks uploads by default. Run this SQL to fix permissions:
+                        {isSchemaError 
+                           ? "Missing database columns. Run this SQL to update your table structure:"
+                           : "Supabase blocks uploads by default. Run this SQL to fix permissions:"}
                       </p>
                       <div className="relative group">
                         <pre className="bg-slate-900 text-indigo-100 text-[10px] p-3 rounded-md overflow-x-auto overflow-y-auto whitespace-pre-wrap font-mono leading-relaxed h-32">
@@ -203,8 +253,10 @@ create table if not exists sessions (
   media_path text,
   media_type text,
   subtitles jsonb,
+  cover_path text,
   created_at bigint
 );
+alter table sessions add column if not exists cover_path text;
 alter table sessions enable row level security;
 create policy "Public Access" on sessions for all to anon using (true) with check (true);`}
                         </pre>

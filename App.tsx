@@ -48,6 +48,7 @@ const App: React.FC = () => {
           mediaType: session.mediaType,
           mediaName: cleanTitle,
           subtitles: session.subtitles,
+          coverUrl: session.coverUrl,
         });
         setAppState(AppState.PLAYER);
         // Reset player state
@@ -148,6 +149,7 @@ const App: React.FC = () => {
             isPlaying={isPlaying}
             onPlayStateChange={setIsPlaying}
             seekCommand={seekCommand}
+            coverUrl={config.coverUrl}
           />
 
           {/* Modals */}

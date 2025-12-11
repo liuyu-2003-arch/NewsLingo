@@ -123,9 +123,9 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigateToUpload, onNavigateToPla
                 className="group bg-white rounded-2xl p-3 flex gap-4 md:gap-6 items-center shadow-sm border border-slate-100 hover:shadow-lg hover:border-indigo-100 transition-all duration-300 cursor-pointer relative overflow-visible"
               >
                 {/* Thumbnail Section */}
-                <div className="relative w-40 md:w-56 aspect-video shrink-0 rounded-xl overflow-hidden bg-slate-900 shadow-inner group-hover:scale-[1.02] transition-transform duration-300">
+                <div className="relative w-40 md:w-56 aspect-video shrink-0 rounded-xl overflow-hidden bg-slate-100 shadow-inner group-hover:scale-[1.02] transition-transform duration-300">
                     <img 
-                        src={DEFAULT_THUMBNAIL} 
+                        src={session.coverUrl || DEFAULT_THUMBNAIL} 
                         alt={session.title}
                         className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity"
                     />

@@ -10,6 +10,7 @@ interface PlayerBarProps {
   isPlaying: boolean;
   onPlayStateChange: (playing: boolean) => void;
   seekCommand: number | null;
+  coverUrl?: string;
 }
 
 const PlayerBar: React.FC<PlayerBarProps> = ({
@@ -20,15 +21,17 @@ const PlayerBar: React.FC<PlayerBarProps> = ({
   onDurationChange,
   isPlaying,
   onPlayStateChange,
-  seekCommand
+  seekCommand,
+  coverUrl
 }) => {
   const mediaRef = useRef<HTMLVideoElement | HTMLAudioElement | null>(null);
   const [duration, setDuration] = useState(0);
   const [expanded, setExpanded] = useState(false);
   const [imageError, setImageError] = useState(false);
   
-  // Use the specific NBC Nightly News thumbnail
-  const coverImage = "https://img.youtube.com/vi/F1ZZXaZ_QzY/maxresdefault.jpg"; 
+  // Default fallback if no cover is provided
+  const defaultCover = "https://img.youtube.com/vi/F1ZZXaZ_QzY/maxresdefault.jpg";
+  const displayCover = coverUrl || defaultCover;
 
   // Handle External Seek Command
   useEffect(() => {
@@ -145,7 +148,7 @@ const PlayerBar: React.FC<PlayerBarProps> = ({
                         {/* Blurred Background */}
                         <div className="absolute inset-0 overflow-hidden">
                             <img 
-                                src={coverImage} 
+                                src={displayCover} 
                                 onError={() => setImageError(true)}
                                 alt="" 
                                 className="w-full h-full object-cover opacity-30 blur-2xl scale-110"
@@ -160,7 +163,7 @@ const PlayerBar: React.FC<PlayerBarProps> = ({
                                 </div>
                             ) : (
                                 <img 
-                                    src={coverImage} 
+                                    src={displayCover} 
                                     alt="Cover Art" 
                                     className="w-auto h-auto max-h-[80%] max-w-[80%] shadow-2xl rounded-lg object-contain"
                                 />
@@ -192,7 +195,7 @@ const PlayerBar: React.FC<PlayerBarProps> = ({
                      </div>
                  ) : (
                      <img 
-                        src={coverImage}
+                        src={displayCover}
                         alt="Cover"
                         onError={() => setImageError(true)}
                         className="w-full h-full object-cover" 
